@@ -32,7 +32,10 @@
 				<div v-for="index in firstOfMonth.endOf('M').get('D')">
 					<div
 						class="h-8 w-8 flex rounded-full mx-auto"
-						:class="getEventOnDate(index) && colorMap[getEventOnDate(index)]"
+						:class="[
+							getEventOnDate(index) && colorMap[getEventOnDate(index)],
+							isLate(index) && 'ring-2 ring-orange-400',
+						]"
 					>
 						<span class="text-gray-800 text-sm font-medium m-auto">
 							{{ index }}
@@ -52,6 +55,30 @@
 					</div>
 					<span class="text-gray-800 text-base font-semibold leading-6 mx-auto">
 						{{ summary[status] || 0 }}
+					</span>
+				</div>
+			</div>
+
+			<!-- Lateness Summary -->
+			<div class="flex flex-col gap-2 mx-2">
+				<div class="flex flex-row justify-between items-center">
+					<div class="flex flex-row gap-1 items-center">
+						<span class="rounded full h-3 w-3 bg-orange-400" />
+						<span class="text-gray-600 text-sm font-medium leading-5"> {{ __("Late") }} </span>
+					</div>
+					<span class="text-gray-800 text-base font-semibold">
+						{{ __("{0} time(s)", [lateCount]) }}
+					</span>
+				</div>
+				<div v-if="earlyExitCount" class="flex flex-row justify-between items-center">
+					<div class="flex flex-row gap-1 items-center">
+						<span class="rounded full h-3 w-3 bg-red-300" />
+						<span class="text-gray-600 text-sm font-medium leading-5">
+							{{ __("Early Exit") }}
+						</span>
+					</div>
+					<span class="text-gray-800 text-base font-semibold">
+						{{ __("{0} time(s)", [earlyExitCount]) }}
 					</span>
 				</div>
 			</div>
@@ -79,10 +106,15 @@ const colorMap = {
 // __("Present"), __("Half Day"), __("Absent"), __("On Leave"), __("Work From Home")
 const summaryStatuses = ["Present", "Half Day", "Absent", "On Leave"]
 
+const events = computed(() => calendarEvents.data?.events || {})
+const lateDays = computed(() => calendarEvents.data?.late_days || [])
+const lateCount = computed(() => calendarEvents.data?.late_count || 0)
+const earlyExitCount = computed(() => calendarEvents.data?.early_exit_count || 0)
+
 const summary = computed(() => {
 	const summary = {}
 
-	for (const status of Object.values(calendarEvents.data)) {
+	for (const status of Object.values(events.value)) {
 		let updatedStatus = status === "Work From Home" ? "Present" : status
 		if (updatedStatus in summary) {
 			summary[updatedStatus] += 1
@@ -102,7 +134,11 @@ watch(
 )
 
 const getEventOnDate = (date) => {
-	return calendarEvents.data[firstOfMonth.value.date(date).format("YYYY-MM-DD")]
+	return events.value[firstOfMonth.value.date(date).format("YYYY-MM-DD")]
+}
+
+const isLate = (date) => {
+	return lateDays.value.includes(firstOfMonth.value.date(date).format("YYYY-MM-DD"))
 }
 
 const getFirstLetter = (s) => Array.from(s.trim())[0] // Unicode
@@ -121,7 +157,7 @@ const DAYS = [
 const calendarEvents = createResource({
 	url: "hrms.api.get_attendance_calendar_events",
 	auto: true,
-	cache: "hrms:attendance_calendar_events",
+	cache: "hrms:attendance_calendar_events_v2",
 	makeParams() {
 		return {
 			from_date: firstOfMonth.value.format("YYYY-MM-DD"),

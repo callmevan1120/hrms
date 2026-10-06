@@ -29,7 +29,12 @@
   "offshift",
   "column_break_vyyt",
   "shift_actual_start",
-  "shift_actual_end"
+  "shift_actual_end",
+  "face_verification_section",
+  "face_verified",
+  "face_score",
+  "column_break_face",
+  "face_photo"
  ],
  "fields": [
   {
@@ -182,6 +187,37 @@
    "hidden": 1,
    "label": "Overtime Type",
    "options": "Overtime Type"
+  },
+  {
+   "fieldname": "face_verification_section",
+   "fieldtype": "Section Break",
+   "label": "Face Verification",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "face_verified",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Face Verified",
+   "read_only": 1
+  },
+  {
+   "fieldname": "face_score",
+   "fieldtype": "Float",
+   "label": "Face Match Score",
+   "precision": "4",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_face",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "face_photo",
+   "fieldtype": "Attach Image",
+   "label": "Face Photo",
+   "read_only": 1
   }
  ],
  "links": [],

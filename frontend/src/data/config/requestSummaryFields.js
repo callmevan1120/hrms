@@ -253,4 +253,9 @@ export const EMPLOYEE_CHECKIN_FIELDS = [
 		label: "Geolocation",
 		fieldtype: "geolocation",
 	},
+	{
+		fieldname: "face_verified",
+		label: "Face Verified",
+		fieldtype: "Check",
+	},
 ]

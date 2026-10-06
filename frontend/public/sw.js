@@ -1,5 +1,7 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching"
 import { clientsClaim } from "workbox-core"
+import { registerRoute } from "workbox-routing"
+import { CacheFirst } from "workbox-strategies"
 
 import { initializeApp } from "firebase/app"
 import { getMessaging, onBackgroundMessage } from "firebase/messaging/sw"
@@ -9,6 +11,12 @@ precacheAndRoute(self.__WB_MANIFEST)
 
 // Clean up old caches
 cleanupOutdatedCaches()
+
+// Cache face detection models for offline use
+registerRoute(
+	({ url }) => url.pathname.startsWith("/assets/hrms/face/"),
+	new CacheFirst({ cacheName: "hrms-face-models" })
+)
 
 const jsonConfig = new URL(location).searchParams.get("config")
 

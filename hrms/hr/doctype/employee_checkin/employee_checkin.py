@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, get_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 from hrms.hr.doctype.shift_assignment.shift_assignment import get_actual_start_end_datetime_of_shift
 from hrms.hr.utils import (
@@ -15,6 +15,11 @@ from hrms.hr.utils import (
 	set_geolocation_from_coordinates,
 	validate_active_employee,
 )
+
+# users with any of these roles bypass the self-service checkin restrictions
+SELF_SERVICE_BYPASS_ROLES = {"HR Manager", "HR User", "System Manager"}
+# allowed clock drift between server time and the submitted log time (in seconds)
+SELF_CHECKIN_TIME_TOLERANCE_SECONDS = 900
 
 
 class CheckinRadiusExceededError(frappe.ValidationError):
@@ -32,6 +37,7 @@ class EmployeeCheckin(Document):
 		self.fetch_shift()
 		self.set_geolocation()
 		self.validate_distance_from_shift_location()
+		self.validate_self_service_checkin()
 
 	def validate_duplicate_log(self):
 		doc = frappe.db.exists(
@@ -129,6 +135,73 @@ class EmployeeCheckin(Document):
 				exc=CheckinRadiusExceededError,
 			)
 
+	def validate_self_service_checkin(self):
+		"""Restrict employee self-service check-ins:
+		- no backdated/future logs (time must be close to server time)
+		- face verification required when configured
+		- check-out only allowed when there is an open check-in within the allowed window
+		"""
+		if not self.is_new() or self.flags.get("ignore_checkin_restrictions"):
+			return
+
+		if frappe.session.user == "Administrator" or set(frappe.get_roles()) & SELF_SERVICE_BYPASS_ROLES:
+			return
+
+		self.validate_self_service_time()
+		self.validate_face_verification()
+		self.validate_checkout_window()
+
+	def validate_self_service_time(self):
+		drift = abs((get_datetime(self.time) - now_datetime()).total_seconds())
+		if drift > SELF_CHECKIN_TIME_TOLERANCE_SECONDS:
+			frappe.throw(
+				title=_("Invalid Check-in Time"),
+				msg=_(
+					"You cannot check in or out for a past or future time. "
+					"Please raise an Attendance Request to regularize your attendance."
+				),
+			)
+
+	def validate_face_verification(self):
+		if not frappe.db.get_single_value("HR Settings", "require_face_checkin"):
+			return
+
+		if not self.face_verified:
+			frappe.throw(
+				title=_("Face Verification Required"),
+				msg=_("Please verify your face in the mobile app to check in or out."),
+			)
+
+	def validate_checkout_window(self):
+		if self.log_type != "OUT":
+			return
+
+		last_log = frappe.get_all(
+			"Employee Checkin",
+			filters={"employee": self.employee, "name": ("!=", self.name)},
+			fields=["name", "log_type", "time", "shift_actual_end"],
+			order_by="time desc",
+			limit=1,
+		)
+		if not last_log or last_log[0].log_type != "IN":
+			frappe.throw(_("No open check-in found. Please check in before checking out."))
+
+		cutoff = get_checkout_cutoff(last_log[0])
+		if get_datetime(self.time) > cutoff:
+			frappe.throw(
+				title=_("Check-out Window Expired"),
+				msg=_(
+					"Checking out for a previous day is not allowed. "
+					"Please raise an Attendance Request to regularize your attendance."
+				),
+			)
+
+
+def get_checkout_cutoff(open_checkin) -> datetime:
+	"""Check-out is allowed until the end of the day the shift (or check-in) belongs to."""
+	reference_time = open_checkin.get("shift_actual_end") or open_checkin.get("time")
+	return get_datetime(reference_time).replace(hour=23, minute=59, second=59, microsecond=0)
+
 
 @frappe.whitelist(methods=["POST"])
 def add_log_based_on_employee_field(
@@ -187,6 +260,8 @@ def add_log_based_on_employee_field(
 	doc.longitude = longitude
 	if cint(skip_auto_attendance) == 1:
 		doc.skip_auto_attendance = "1"
+	# logs pushed from external devices may legitimately be backdated
+	doc.flags.ignore_checkin_restrictions = True
 	doc.insert()
 
 	return doc

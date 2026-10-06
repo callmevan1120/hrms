@@ -6,11 +6,21 @@
 
 		<template v-if="settings.data?.allow_employee_checkin_from_mobile_app">
 			<div class="font-medium text-sm text-gray-500 mt-1.5" v-if="lastLog">
-				<span>{{ __("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)]) }}</span>
+				<span>{{
+					__("Last {0} was at {1}", [__(lastLogType), formatTimestamp(lastLog.time)])
+				}}</span>
 				<span class="whitespace-pre"> &middot; </span>
 				<router-link :to="{ name: 'EmployeeCheckinListView' }" v-slot="{ navigate }">
 					<span @click="navigate" class="underline">{{ __("View List") }}</span>
 				</router-link>
+			</div>
+			<div v-if="missedCheckout" class="mt-2 text-xs font-medium text-orange-600">
+				{{
+					__(
+						"You have not checked out on {0}. Please raise an Attendance Request to regularize it.",
+						[missedCheckoutDate]
+					)
+				}}
 			</div>
 			<Button
 				class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
@@ -39,6 +49,7 @@
 		trigger="open-checkin-modal"
 		:initial-breakpoint="1"
 		:breakpoints="[0, 1]"
+		@didDismiss="resetFaceState"
 	>
 		<div class="h-120 w-full flex flex-col items-center justify-center gap-5 p-4 mb-5">
 			<div class="flex flex-col gap-1.5 mt-2 items-center justify-center">
@@ -70,7 +81,63 @@
 				</div>
 			</template>
 
-			<Button :loading="checkins.insert.loading" variant="solid" class="w-full py-5 text-sm disabled:bg-gray-700" @click="submitLog(nextAction.action)">
+			<template v-if="settings.data?.enable_face_checkin">
+				<div
+					v-if="!faceStatusChecked || faceStatus.loading"
+					class="font-medium text-gray-500 text-sm"
+				>
+					{{ __("Checking face enrollment...") }}
+				</div>
+
+				<template v-else-if="faceStep === 'enroll'">
+					<div class="text-sm text-gray-500 text-center">
+						{{
+							__(
+								"Enroll your face to start using face attendance. Your face data is stored securely for attendance verification."
+							)
+						}}
+					</div>
+					<FaceCapture
+						mode="enroll"
+						:samples-required="enrollSamples"
+						@captured="handleEnrolled"
+					/>
+				</template>
+
+				<template v-else-if="faceStep === 'capture'">
+					<FaceCapture mode="verify" @captured="handleFaceCaptured" />
+				</template>
+
+				<div v-else-if="faceStep === 'confirm'" class="flex flex-col items-center gap-3 w-full">
+					<img
+						v-if="capturedPhoto"
+						:src="capturedPhoto"
+						class="w-40 h-40 object-cover rounded-lg"
+					/>
+					<div class="text-green-600 text-sm font-medium">
+						{{ __("Face verified. Confirm to {0}.", [nextAction.label]) }}
+					</div>
+					<Button
+						:loading="faceCheckin.loading"
+						variant="solid"
+						class="w-full py-5 text-sm disabled:bg-gray-700"
+						@click="submitFaceCheckin"
+					>
+						{{ __("Confirm {0}", [nextAction.label]) }}
+					</Button>
+					<Button variant="ghost" @click="retryFaceCapture">
+						{{ __("Retake Face") }}
+					</Button>
+				</div>
+			</template>
+
+			<Button
+				v-else
+				:loading="checkins.insert.loading"
+				variant="solid"
+				class="w-full py-5 text-sm disabled:bg-gray-700"
+				@click="submitLog(nextAction.action)"
+			>
 				{{ __("Confirm {0}", [nextAction.label]) }}
 			</Button>
 		</div>
@@ -78,10 +145,11 @@
 </template>
 
 <script setup>
-import { createListResource, toast, FeatherIcon } from "frappe-ui"
+import { createListResource, createResource, toast, FeatherIcon } from "frappe-ui"
 import { computed, inject, ref, onMounted, onBeforeUnmount } from "vue"
 import { IonModal, modalController } from "@ionic/vue"
 
+import FaceCapture from "@/components/FaceCapture.vue"
 import { formatTimestamp } from "@/utils/formatters"
 import { settings } from "@/data/settings"
 
@@ -96,15 +164,44 @@ const latitude = ref(0)
 const longitude = ref(0)
 const locationStatus = ref("")
 
+const faceStep = ref("capture")
+const faceStatusChecked = ref(false)
+const capturedDescriptor = ref(null)
+const capturedPhoto = ref(null)
+
 const checkins = createListResource({
 	doctype: DOCTYPE,
-	fields: ["name", "employee", "employee_name", "log_type", "time", "device_id"],
+	fields: [
+		"name",
+		"employee",
+		"employee_name",
+		"log_type",
+		"time",
+		"device_id",
+		"shift_actual_end",
+		"face_verified",
+	],
 	filters: {
 		employee: employee.data.name,
 	},
 	orderBy: "time desc",
 })
 checkins.reload()
+
+const faceStatus = createResource({
+	url: "hrms.api.face.get_face_status",
+	method: "GET",
+})
+
+const enrollFace = createResource({
+	url: "hrms.api.face.enroll_face",
+	method: "POST",
+})
+
+const faceCheckin = createResource({
+	url: "hrms.api.face.face_checkin",
+	method: "POST",
+})
 
 const lastLog = computed(() => {
 	if (!checkins.data?.length) return {}
@@ -115,11 +212,32 @@ const lastLogType = computed(() => {
 	return lastLog?.value?.log_type === "IN" ? "check-in" : "check-out"
 })
 
-const nextAction = computed(() => {
-	return lastLog?.value?.log_type === "IN"
-		? { action: "OUT", label: __("Check Out") }
-		: { action: "IN", label: __("Check In") }
+const openCheckin = computed(() => {
+	const last = checkins.data?.[0]
+	return last?.log_type === "IN" ? last : null
 })
+
+const isWithinCheckoutWindow = (log) => {
+	const reference = log?.shift_actual_end || log?.time
+	return reference ? dayjs().isBefore(dayjs(reference).endOf("day")) : false
+}
+
+const missedCheckout = computed(() => {
+	return openCheckin.value && !isWithinCheckoutWindow(openCheckin.value)
+})
+
+const missedCheckoutDate = computed(() => {
+	return dayjs(openCheckin.value?.time).format("D MMM YYYY")
+})
+
+const nextAction = computed(() => {
+	if (openCheckin.value && isWithinCheckoutWindow(openCheckin.value)) {
+		return { action: "OUT", label: __("Check Out") }
+	}
+	return { action: "IN", label: __("Check In") }
+})
+
+const enrollSamples = computed(() => settings.data?.face_enroll_samples || 3)
 
 function handleLocationSuccess(position) {
 	latitude.value = position.coords.latitude
@@ -145,22 +263,160 @@ const fetchLocation = () => {
 	}
 }
 
+const ensureLocation = () => {
+	if (!settings.data?.allow_geolocation_tracking) return true
+	if (latitude.value && longitude.value) return true
+
+	toast({
+		title: __("Error"),
+		text: __("Unable to retrieve your location. Please wait or try again."),
+		icon: "alert-circle",
+		position: "bottom-center",
+		iconClasses: "text-red-500",
+	})
+	return false
+}
+
+function resetFaceState() {
+	faceStep.value = "capture"
+	capturedDescriptor.value = null
+	capturedPhoto.value = null
+}
+
 const handleEmployeeCheckin = () => {
 	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
+	resetFaceState()
 
 	if (settings.data?.allow_geolocation_tracking) {
 		fetchLocation()
 	}
+
+	if (settings.data?.enable_face_checkin) {
+		faceStatusChecked.value = false
+		faceStatus
+			.fetch()
+			.then((data) => {
+				faceStep.value = data?.enrolled ? "capture" : "enroll"
+			})
+			.catch(() => {
+				faceStep.value = "capture"
+			})
+			.finally(() => {
+				faceStatusChecked.value = true
+			})
+	}
+}
+
+const handleFaceCaptured = ({ descriptors, photo }) => {
+	capturedDescriptor.value = descriptors[0]
+	capturedPhoto.value = photo
+	faceStep.value = "confirm"
+}
+
+const retryFaceCapture = () => {
+	capturedDescriptor.value = null
+	capturedPhoto.value = null
+	faceStep.value = "capture"
+}
+
+const handleEnrolled = ({ descriptors, photo }) => {
+	enrollFace.submit(
+		{
+			employee: employee.data.name,
+			descriptors: JSON.stringify(descriptors),
+			photo,
+		},
+		{
+			onSuccess() {
+				toast({
+					title: __("Success"),
+					text: __("Face enrolled successfully!"),
+					icon: "check-circle",
+					position: "bottom-center",
+					iconClasses: "text-green-500",
+				})
+				faceStep.value = "capture"
+			},
+			onError(error) {
+				const messages = error.messages?.length ? error.messages : [__("Face enrollment failed!")]
+				for (const message of messages) {
+					toast({
+						title: __("Error"),
+						text: message,
+						icon: "alert-circle",
+						position: "bottom-center",
+						iconClasses: "text-red-500",
+					})
+				}
+			},
+		}
+	)
+}
+
+const submitFaceCheckin = () => {
+	if (!ensureLocation()) return
+
+	const actionLabel = nextAction.value.action === "IN" ? __("Check-in") : __("Check-out")
+	faceCheckin.submit(
+		{
+			log_type: nextAction.value.action,
+			descriptor: JSON.stringify(capturedDescriptor.value),
+			latitude: latitude.value || null,
+			longitude: longitude.value || null,
+			photo: capturedPhoto.value,
+		},
+		{
+			onSuccess(data) {
+				if (!data?.name) {
+					toast({
+						title: __("Error"),
+						text: __("{0} failed!", [actionLabel]),
+						icon: "alert-circle",
+						position: "bottom-center",
+						iconClasses: "text-red-500",
+					})
+					return
+				}
+
+				modalController.dismiss()
+				checkins.reload()
+				resetFaceState()
+				toast({
+					title: __("Success"),
+					text: __("{0} successful!", [actionLabel]),
+					icon: "check-circle",
+					position: "bottom-center",
+					iconClasses: "text-green-500",
+				})
+			},
+			onError(error) {
+				const messages = error.messages?.length
+					? error.messages
+					: [__("{0} failed!", [actionLabel])]
+				for (const message of messages) {
+					toast({
+						title: __("Error"),
+						text: message,
+						icon: "alert-circle",
+						position: "bottom-center",
+						iconClasses: "text-red-500",
+					})
+				}
+			},
+		}
+	)
 }
 
 const submitLog = (logType) => {
+	if (!ensureLocation()) return
+
 	const actionLabel = logType === "IN" ? __("Check-in") : __("Check-out")
 
 	checkins.insert.submit(
 		{
 			employee: employee.data.name,
 			log_type: logType,
-			time: checkinTimestamp.value,
+			time: dayjs().format("YYYY-MM-DD HH:mm:ss"),
 			latitude: latitude.value,
 			longitude: longitude.value,
 		},
@@ -178,6 +434,7 @@ const submitLog = (logType) => {
 				}
 
 				modalController.dismiss()
+				checkins.reload()
 				toast({
 					title: __("Success"),
 					text: __("{0} successful!", [actionLabel]),
@@ -187,12 +444,13 @@ const submitLog = (logType) => {
 				})
 			},
 			onError(error) {
-				let messages = error.messages?.length ? error.messages : [__("{0} failed!", [actionLabel])]
-
+				const messages = error.messages?.length
+					? error.messages
+					: [__("{0} failed!", [actionLabel])]
 				for (const message of messages) {
 					toast({
 						title: __("Error"),
-						text: message || __("{0} failed!", [actionLabel]),
+						text: message,
 						icon: "alert-circle",
 						position: "bottom-center",
 						iconClasses: "text-red-500",

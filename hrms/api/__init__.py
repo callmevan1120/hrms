@@ -105,6 +105,10 @@ def get_hr_settings() -> dict:
 		allow_geolocation_tracking=settings.allow_geolocation_tracking,
 		prevent_self_leave_approval=settings.prevent_self_leave_approval,
 		enable_multi_currency_expense_claim=settings.enable_multi_currency_expense_claim,
+		enable_face_checkin=settings.get("enable_face_checkin"),
+		require_face_checkin=settings.get("require_face_checkin"),
+		face_match_threshold=settings.get("face_match_threshold") or 0.5,
+		face_enroll_samples=settings.get("face_enroll_samples") or 3,
 	)
 
 
@@ -139,31 +143,44 @@ def are_push_notifications_enabled() -> bool:
 
 # Attendance
 @frappe.whitelist()
-def get_attendance_calendar_events(from_date: str, to_date: str) -> dict[str, str]:
+def get_attendance_calendar_events(from_date: str, to_date: str) -> dict:
 	employee = get_current_employee()
 	holidays = get_holidays_for_calendar(employee, from_date, to_date)
 	attendance = get_attendance_for_calendar(employee, from_date, to_date)
 	events = {}
+	late_days = []
+	early_exit_days = []
 
 	date = getdate(from_date)
 	while date_diff(to_date, date) >= 0:
 		date_str = date.strftime("%Y-%m-%d")
-		if date in attendance:
-			events[date_str] = attendance[date]
+		if date_str in attendance:
+			record = attendance[date_str]
+			events[date_str] = record["status"]
+			if record.get("late_entry"):
+				late_days.append(date_str)
+			if record.get("early_exit"):
+				early_exit_days.append(date_str)
 		elif date in holidays:
 			events[date_str] = "Holiday"
 		date = add_days(date, 1)
 
-	return events
+	return {
+		"events": events,
+		"late_days": late_days,
+		"early_exit_days": early_exit_days,
+		"late_count": len(late_days),
+		"early_exit_count": len(early_exit_days),
+	}
 
 
-def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> list[dict[str, str]]:
+def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> dict[str, dict]:
 	attendance = frappe.get_all(
 		"Attendance",
 		{"employee": employee, "attendance_date": ["between", [from_date, to_date]], "docstatus": 1},
-		["attendance_date", "status"],
+		["attendance_date", "status", "late_entry", "early_exit"],
 	)
-	return {d["attendance_date"]: d["status"] for d in attendance}
+	return {str(d["attendance_date"]): d for d in attendance}
 
 
 def get_holidays_for_calendar(employee: str, from_date: str, to_date: str) -> list[str]:

@@ -15,6 +15,7 @@
 		"@ionic/vue": "^7.4.3",
 		"@ionic/vue-router": "^7.4.3",
 		"@vitejs/plugin-vue": "^4.4.0",
+		"@vladmandic/face-api": "^1.7.15",
 		"autoprefixer": "^10.4.19",
 		"dayjs": "^1.11.11",
 		"feather-icons": "^4.29.1",
@@ -27,7 +28,9 @@
 		"vue": "^3.5.12",
 		"vue-router": "^4.3.2",
 		"workbox-core": "^7.0.0",
-		"workbox-precaching": "^7.0.0"
+		"workbox-precaching": "^7.0.0",
+		"workbox-routing": "^7.0.0",
+		"workbox-strategies": "^7.0.0"
 	},
 	"devDependencies": {
 		"eslint": "^8.39.0",

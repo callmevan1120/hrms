@@ -45,6 +45,10 @@
   "attendance_settings_section",
   "allow_employee_checkin_from_mobile_app",
   "allow_geolocation_tracking",
+  "enable_face_checkin",
+  "require_face_checkin",
+  "face_match_threshold",
+  "face_enroll_samples",
   "tenure_tab",
   "employee_exit_settings_section",
   "exit_questionnaire_web_form",
@@ -293,6 +297,35 @@
    "fieldname": "allow_geolocation_tracking",
    "fieldtype": "Check",
    "label": "Allow Geolocation Tracking"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_face_checkin",
+   "fieldtype": "Check",
+   "label": "Enable Face Checkin"
+  },
+  {
+   "default": "0",
+   "depends_on": "enable_face_checkin",
+   "fieldname": "require_face_checkin",
+   "fieldtype": "Check",
+   "label": "Require Face Verification for Checkin"
+  },
+  {
+   "default": "0.5",
+   "depends_on": "enable_face_checkin",
+   "description": "Maximum allowed Euclidean distance between enrolled face and check-in face. Lower is stricter.",
+   "fieldname": "face_match_threshold",
+   "fieldtype": "Float",
+   "label": "Face Match Threshold"
+  },
+  {
+   "default": "3",
+   "depends_on": "enable_face_checkin",
+   "description": "Number of face samples captured during enrollment.",
+   "fieldname": "face_enroll_samples",
+   "fieldtype": "Int",
+   "label": "Face Enrollment Samples"
   },
   {
    "fieldname": "attendance_settings_section",
