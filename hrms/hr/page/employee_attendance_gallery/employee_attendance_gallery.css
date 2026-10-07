@@ -29,21 +29,14 @@
 	color: var(--text-muted);
 }
 
-/* kill the drift coming from frappe form-control wrappers */
-.eag-filter .form-group,
-.eag-filter .frappe-control {
-	margin: 0 !important;
-	padding: 0 !important;
-}
-
 .eag-filter .form-control {
 	height: 30px;
 	font-size: 13px;
+	width: auto;
 }
 
-.eag-filter .form-control:focus {
-	box-shadow: none;
-	border-color: var(--gray-500);
+.eag-filter select.form-control {
+	padding-right: 22px;
 }
 
 .eag-period-row {
@@ -56,6 +49,14 @@
 	color: var(--text-muted);
 }
 
+.eag-company {
+	width: 200px;
+}
+
+.eag-search {
+	width: 200px;
+}
+
 .eag-date {
 	width: 138px;
 }
@@ -66,25 +67,19 @@
 
 .eag-actions {
 	margin-left: auto;
-	flex-direction: column;
-	align-items: flex-end;
 }
 
-.eag-actions > div {
-	margin-top: 0 !important;
-}
-
-.eag-actions {
-	row-gap: 6px;
-}
-
-.eag-actions .eag-seg {
+.eag-actions-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	height: 30px;
 }
 
 .eag-refresh {
 	height: 30px;
-	width: 34px;
+	width: 36px;
+	padding: 0;
 }
 
 /* --------------------------- segmented control -------------------------- */
@@ -92,6 +87,7 @@
 .eag-seg {
 	display: inline-flex;
 	align-items: stretch;
+	height: 30px;
 	border: 1px solid var(--border-color);
 	border-radius: 6px;
 	overflow: hidden;
@@ -122,28 +118,25 @@
 	color: var(--card-bg);
 }
 
+.eag-seg-sm {
+	height: 24px;
+}
+
 .eag-seg-sm button {
 	padding: 0 8px;
+	font-size: 11px;
 }
 
-/* ------------------------------- toolbar -------------------------------- */
-
-.eag-toolbar {
-	display: flex;
-	justify-content: flex-end;
-	margin-bottom: 10px;
-}
-
-.eag-search {
-	max-width: 260px;
-	height: 30px;
-	font-size: 13px;
-}
+/* ------------------------------- status -------------------------------- */
 
 .eag-status {
 	color: var(--text-muted);
 	font-size: 13px;
 	padding: 4px 0 10px;
+}
+
+.eag-status:empty {
+	padding: 0;
 }
 
 /* --------------------------------- grid --------------------------------- */
@@ -509,13 +502,4 @@
 	justify-content: space-between;
 	gap: 10px;
 	color: var(--text-color);
-}
-
-.eag-tweaks-row .eag-seg {
-	height: 24px;
-}
-
-.eag-tweaks-row .eag-seg button {
-	font-size: 11px;
-	padding: 0 8px;
 }

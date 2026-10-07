@@ -483,6 +483,7 @@ def get_employee_checkin_gallery(
 	from_date: str | None = None,
 	to_date: str | None = None,
 	employee: str | None = None,
+	search: str | None = None,
 	log_type: str | None = None,
 	face_verified: str | int | None = None,
 	start: int = 0,
@@ -515,6 +516,8 @@ def get_employee_checkin_gallery(
 		filters["log_type"] = log_type
 	if face_verified not in (None, "", "all"):
 		filters["face_verified"] = cint(face_verified)
+	if search:
+		filters["employee_name"] = ["like", f"%{search}%"]
 
 	checkins = frappe.get_all(
 		"Employee Checkin",
