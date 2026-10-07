@@ -15,6 +15,7 @@ frappe.pages["employee-attendance-gallery"].on_page_show = function () {
 class EmployeeAttendanceGallery {
 	constructor(page) {
 		this.page = page;
+		this.page.main.addClass("eag-page");
 		this.mode = "auto";
 		this.view = "main";
 		this.selected_employee = null;
@@ -22,10 +23,12 @@ class EmployeeAttendanceGallery {
 		this.page_length = 24;
 		this.loading = false;
 		this.current_rows = [];
+		this.search_value = "";
 
 		this.setup_dates("Today");
 		this.make_filters();
 		this.make_container();
+		this.make_tweaks();
 		this.update_mode_buttons();
 		this.refresh();
 	}
@@ -52,9 +55,11 @@ class EmployeeAttendanceGallery {
 	make_filters() {
 		this.$filters = $('<div class="eag-filters"></div>').appendTo(this.page.main);
 
-		const add_field = (label, $control) => {
+		const add_filter = (label, $control) => {
 			const $field = $(
-				`<div class="eag-filter"><div class="eag-filter-label">${frappe.utils.escape_html(label)}</div></div>`
+				`<div class="eag-filter"><div class="eag-filter-label">${frappe.utils.escape_html(
+					label
+				)}</div></div>`
 			);
 			$field.append($control).appendTo(this.$filters);
 			return $field;
@@ -62,7 +67,7 @@ class EmployeeAttendanceGallery {
 
 		// company
 		const $company = $('<div class="eag-control"></div>');
-		add_field(__("Company"), $company);
+		add_filter(__("Company"), $company);
 		this.company_control = frappe.ui.form.make_control({
 			parent: $company,
 			df: {
@@ -78,7 +83,7 @@ class EmployeeAttendanceGallery {
 			frappe.utils.debounce(() => this.refresh(), 400)
 		);
 
-		// period preset
+		// period: one label for preset + date range
 		this.$preset = $(`
 			<select class="form-control eag-input">
 				<option value="Today">${__("Today")}</option>
@@ -87,21 +92,23 @@ class EmployeeAttendanceGallery {
 				<option value="Last 30 Days">${__("Last 30 Days")}</option>
 				<option value="Custom">${__("Custom")}</option>
 			</select>
-		`);
-		add_field(__("Period"), this.$preset);
+		`).attr("title", __("Period"));
+		this.$from = $('<input type="date" class="form-control eag-input eag-date">');
+		this.$to = $('<input type="date" class="form-control eag-input eag-date">');
+		const $period_row = $('<div class="eag-period-row"></div>')
+			.append(this.$preset)
+			.append(this.$from)
+			.append('<span class="eag-dash">–</span>')
+			.append(this.$to);
+		add_filter(__("Period"), $period_row);
+		this.render_dates();
+
 		this.$preset.on("change", () => {
 			const preset = this.$preset.val();
 			this.setup_dates(preset);
 			this.render_dates();
 			this.refresh();
 		});
-
-		// dates
-		this.$from = $('<input type="date" class="form-control eag-input">');
-		add_field(__("From Date"), this.$from);
-		this.$to = $('<input type="date" class="form-control eag-input">');
-		add_field(__("To Date"), this.$to);
-		this.render_dates();
 		this.$from.on("change", () => {
 			this.$preset.val("Custom");
 			this.refresh();
@@ -113,7 +120,7 @@ class EmployeeAttendanceGallery {
 
 		// employee
 		const $employee = $('<div class="eag-control"></div>');
-		add_field(__("Employee"), $employee);
+		add_filter(__("Employee"), $employee);
 		this.employee_control = frappe.ui.form.make_control({
 			parent: $employee,
 			df: {
@@ -129,61 +136,53 @@ class EmployeeAttendanceGallery {
 			frappe.utils.debounce(() => this.refresh(), 400)
 		);
 
-		// search (per employee list)
-		this.$search = $(
-			`<input type="text" class="form-control eag-input" placeholder="${__("Search employee")}">`
-		);
-		add_field(__("Search"), this.$search);
-		this.$search.on(
-			"input",
-			frappe.utils.debounce(() => {
-				if (this.effective_mode() === "list") this.refresh();
-			}, 500)
-		);
-
 		// log type
 		this.$log_type = $(`
-			<select class="form-control eag-input">
+			<select class="form-control eag-input eag-narrow">
 				<option value="">${__("All")}</option>
 				<option value="IN">IN</option>
 				<option value="OUT">OUT</option>
 			</select>
 		`);
-		add_field(__("Log Type"), this.$log_type);
+		add_filter(__("Log Type"), this.$log_type);
 		this.$log_type.on("change", () => this.refresh());
 
 		// face verified
 		this.$face = $(`
-			<select class="form-control eag-input">
+			<select class="form-control eag-input eag-narrow">
 				<option value="">${__("All")}</option>
 				<option value="1">${__("Verified")}</option>
 				<option value="0">${__("Unverified")}</option>
 			</select>
 		`);
-		add_field(__("Face Verified"), this.$face);
+		add_filter(__("Face Verified"), this.$face);
 		this.$face.on("change", () => this.refresh());
 
-		// mode toggle
-		const $mode = $('<div class="eag-control"></div>');
-		add_field(__("View Mode"), $mode);
+		// right aligned controls: view mode + refresh
+		const $actions = $('<div class="eag-filter eag-actions"></div>').append(
+			'<div class="eag-filter-label">&nbsp;</div>'
+		);
+		$actions.appendTo(this.$filters);
+
 		this.$mode = $(`
-			<div class="eag-mode btn-group">
-				<button class="btn btn-xs btn-default" data-mode="auto">${__("Auto")}</button>
-				<button class="btn btn-xs btn-default" data-mode="gallery">${__("Gallery")}</button>
-				<button class="btn btn-xs btn-default" data-mode="list">${__("Per Employee")}</button>
+			<div class="eag-seg" role="group" aria-label="${__("View Mode")}">
+				<button type="button" data-mode="auto">${__("Auto")}</button>
+				<button type="button" data-mode="gallery">${__("Gallery")}</button>
+				<button type="button" data-mode="list">${__("Per Employee")}</button>
 			</div>
-		`).appendTo($mode);
+		`).appendTo($actions);
 		this.$mode.on("click", "button", (event) => {
 			this.mode = $(event.currentTarget).attr("data-mode");
 			this.update_mode_buttons();
 			this.refresh();
 		});
 
-		// refresh
-		const $refresh = $('<div class="eag-control"></div>');
-		add_field("", $refresh);
-		$(`<button class="btn btn-xs btn-primary">${__("Refresh")}</button>`)
-			.appendTo($refresh)
+		$(
+			`<button type="button" class="btn btn-xs btn-default eag-refresh" title="${__("Refresh")}">
+				<i class="fa fa-refresh"></i>
+			</button>`
+		)
+			.appendTo($actions)
 			.on("click", () => this.refresh());
 	}
 
@@ -193,15 +192,27 @@ class EmployeeAttendanceGallery {
 	}
 
 	update_mode_buttons() {
-		this.$mode.find("button").removeClass("btn-primary").addClass("btn-default");
-		this.$mode.find(`button[data-mode="${this.mode}"]`).removeClass("btn-default").addClass("btn-primary");
-		const effective = this.effective_mode();
-		this.$mode.attr("data-effective", effective);
+		this.$mode.find("button").removeClass("eag-active");
+		this.$mode.find(`button[data-mode="${this.mode}"]`).addClass("eag-active");
 	}
 
 	/* ------------------------------ containers ----------------------------- */
 
 	make_container() {
+		this.$toolbar = $('<div class="eag-toolbar"></div>').appendTo(this.page.main);
+		this.$search = $(
+			`<input type="text" class="form-control eag-search" placeholder="${__(
+				"Search employee"
+			)}">`
+		).appendTo(this.$toolbar);
+		this.$search.on(
+			"input",
+			frappe.utils.debounce(() => {
+				this.search_value = this.$search.val();
+				this.load_summary(true);
+			}, 450)
+		);
+
 		this.$status = $('<div class="eag-status"></div>').appendTo(this.page.main);
 		this.$content = $('<div class="eag-content"></div>').appendTo(this.page.main);
 		this.$more = $('<div class="eag-more"></div>').appendTo(this.page.main);
@@ -223,6 +234,72 @@ class EmployeeAttendanceGallery {
 			// ignore
 		}
 		frappe.msgprint({ message: message || __("Something went wrong"), indicator: "red" });
+	}
+
+	/* -------------------------------- tweaks ------------------------------- */
+
+	make_tweaks() {
+		this.tweaks = {
+			density: localStorage.getItem("eag_density") || "relaxed",
+			photo: localStorage.getItem("eag_photo") || "portrait",
+		};
+
+		const $tweaks = $(`
+			<div class="eag-tweaks">
+				<div class="eag-tweaks-title">
+					<span>${__("Display")}</span>
+					<i class="fa fa-chevron-down"></i>
+				</div>
+				<div class="eag-tweaks-body">
+					<div class="eag-tweaks-row">
+						<span>${__("Density")}</span>
+						<div class="eag-seg eag-seg-sm" data-tweak="density">
+							<button type="button" data-value="compact">${__("Compact")}</button>
+							<button type="button" data-value="relaxed">${__("Relaxed")}</button>
+						</div>
+					</div>
+					<div class="eag-tweaks-row">
+						<span>${__("Photo")}</span>
+						<div class="eag-seg eag-seg-sm" data-tweak="photo">
+							<button type="button" data-value="portrait">${__("Portrait")}</button>
+							<button type="button" data-value="square">${__("Square")}</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		`).appendTo(document.body);
+
+		$tweaks.find(".eag-tweaks-title").on("click", () => {
+			$tweaks.toggleClass("eag-collapsed");
+		});
+
+		$tweaks.on("click", ".eag-seg button", (event) => {
+			const $button = $(event.currentTarget);
+			const axis = $button.closest(".eag-seg").attr("data-tweak");
+			this.tweaks[axis] = $button.attr("data-value");
+			this.apply_tweaks();
+		});
+
+		this.$tweaks = $tweaks;
+		this.apply_tweaks();
+	}
+
+	apply_tweaks() {
+		localStorage.setItem("eag_density", this.tweaks.density);
+		localStorage.setItem("eag_photo", this.tweaks.photo);
+
+		this.page.main
+			.toggleClass("eag-density-compact", this.tweaks.density === "compact")
+			.toggleClass("eag-photo-square", this.tweaks.photo === "square");
+
+		this.$tweaks.find(".eag-seg").each((_, seg) => {
+			const axis = $(seg).attr("data-tweak");
+			$(seg)
+				.find("button")
+				.removeClass("eag-active")
+				.filter(`[data-value="${this.tweaks[axis]}"]`)
+				.addClass("eag-active");
+		});
 	}
 
 	/* -------------------------------- state -------------------------------- */
@@ -250,6 +327,8 @@ class EmployeeAttendanceGallery {
 	}
 
 	refresh() {
+		const show_toolbar = this.view === "main" && this.effective_mode() === "list";
+		this.$toolbar.toggle(show_toolbar);
 		if (this.view === "employee") return this.load_daily_cards();
 		if (this.effective_mode() === "gallery") return this.load_gallery(true);
 		return this.load_summary(true);
@@ -306,7 +385,9 @@ class EmployeeAttendanceGallery {
 
 	card_html(row) {
 		const photo = row.face_photo
-			? `<img class="eag-photo-img" src="${frappe.utils.escape_html(row.face_photo)}" loading="lazy" alt="">`
+			? `<img class="eag-photo-img" src="${frappe.utils.escape_html(
+					row.face_photo
+				)}" loading="lazy" alt="">`
 			: `<div class="eag-photo-empty">${frappe.utils.escape_html(
 					frappe.utils.get_abbr(row.employee_name || row.employee)
 				)}</div>`;
@@ -367,6 +448,7 @@ class EmployeeAttendanceGallery {
 			this.current_rows = [];
 			this.$content.empty();
 			this.$more.empty();
+			this.$list = null;
 		}
 		if (this.loading) return;
 		this.loading = true;
@@ -377,7 +459,7 @@ class EmployeeAttendanceGallery {
 				company: filters.company,
 				from_date: filters.from_date,
 				to_date: filters.to_date,
-				search: this.$search.val() || null,
+				search: this.search_value || null,
 				start: this.start,
 				page_length: 20,
 			});
