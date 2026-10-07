@@ -432,6 +432,37 @@ def get_leave_balance_map() -> dict[str, dict[str, float]]:
 
 
 @frappe.whitelist()
+def get_leave_usage_summary(year: int | None = None) -> list[dict]:
+	"""Count of leave applications per leave type for the year (excludes cancelled/rejected)."""
+	from frappe.utils import flt
+
+	employee = get_current_employee()
+	year = year or getdate().year
+
+	applications = frappe.get_all(
+		"Leave Application",
+		filters={
+			"employee": employee,
+			"from_date": ["between", [f"{year}-01-01", f"{year}-12-31"]],
+			"docstatus": ["<", 2],
+			"status": ["!=", "Rejected"],
+		},
+		fields=["leave_type", "total_leave_days"],
+	)
+
+	summary = {}
+	for application in applications:
+		row = summary.setdefault(
+			application.leave_type,
+			{"leave_type": application.leave_type, "count": 0, "days": 0.0},
+		)
+		row["count"] += 1
+		row["days"] += flt(application.total_leave_days)
+
+	return sorted(summary.values(), key=lambda row: row["leave_type"])
+
+
+@frappe.whitelist()
 def get_holidays_for_employee(employee: str) -> list[dict]:
 	holiday_list = get_holiday_list_for_employee(employee, raise_exception=False)
 	if not holiday_list:
