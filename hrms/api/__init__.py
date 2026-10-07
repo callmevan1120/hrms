@@ -524,6 +524,17 @@ def get_leave_types(employee: str, date: str) -> list:
 	leave_details = get_leave_details(employee, date)
 	leave_types = list(leave_details["leave_allocation"].keys()) + leave_details["lwps"]
 
+	# include no-allocation leave types (e.g. permission/izin) that allow a
+	# negative balance, so they show up even without an allocation
+	no_allocation_types = frappe.get_all(
+		"Leave Type",
+		filters={"allow_negative": 1, "is_lwp": 0},
+		pluck="name",
+	)
+	for leave_type in no_allocation_types:
+		if leave_type not in leave_types:
+			leave_types.append(leave_type)
+
 	return leave_types
 
 
