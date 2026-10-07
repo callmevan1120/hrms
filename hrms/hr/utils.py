@@ -982,9 +982,9 @@ def notify_bulk_action_status(doctype: str, failure: list, success: list) -> Non
 
 @frappe.whitelist()
 def set_geolocation_from_coordinates(doc: Document):
-	if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
-		return
-
+	# always store the geolocation payload when coordinates are present so that
+	# check-in history can show the location; the HR Settings flag only controls
+	# whether coordinates are mandatory and validated against shift locations.
 	if not (doc.latitude and doc.longitude):
 		return
 

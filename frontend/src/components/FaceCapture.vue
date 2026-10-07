@@ -1,10 +1,12 @@
 <template>
 	<div class="flex flex-col gap-3 w-full items-center">
-		<div class="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-black">
+		<div
+			class="relative mx-auto h-[45vh] min-h-[240px] max-h-[500px] aspect-[3/4] max-w-full overflow-hidden rounded-lg border border-gray-200 bg-black"
+		>
 			<video
 				v-show="cameraActive"
 				ref="videoEl"
-				class="w-full max-h-80 object-cover"
+				class="absolute inset-0 w-full h-full object-cover"
 				autoplay
 				muted
 				playsinline
@@ -14,10 +16,14 @@
 				ref="overlayEl"
 				class="absolute inset-0 w-full h-full pointer-events-none"
 			/>
-			<img v-if="lastSamplePhoto" :src="lastSamplePhoto" class="w-full max-h-80 object-cover" />
+			<img
+				v-if="lastSamplePhoto"
+				:src="lastSamplePhoto"
+				class="absolute inset-0 w-full h-full object-cover"
+			/>
 			<div
 				v-if="!cameraActive && !lastSamplePhoto"
-				class="flex items-center justify-center h-64 px-6 text-center text-sm text-gray-300"
+				class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-300"
 			>
 				{{ statusText }}
 			</div>
@@ -56,6 +62,9 @@
 			>
 				{{ __("Take Photo") }}
 			</Button>
+			<Button v-if="fallbackNeeded" variant="ghost" class="py-4" @click="retryCamera">
+				{{ __("Try Camera Again") }}
+			</Button>
 			<Button
 				v-if="lastSamplePhoto && !fallbackNeeded"
 				variant="ghost"
@@ -78,11 +87,11 @@ import { Button } from "frappe-ui"
 import { detectSingleFace } from "@vladmandic/face-api"
 
 import {
-	capturePhoto,
 	descriptorToArray,
 	detectFace,
 	detectorOptions,
 	loadFaceModels,
+	snapshotCanvas,
 } from "@/utils/face"
 
 const props = defineProps({
@@ -147,22 +156,44 @@ function stopCamera() {
 		cameraStream.getTracks().forEach((track) => track.stop())
 		cameraStream = null
 	}
+	if (videoEl.value) {
+		videoEl.value.srcObject = null
+	}
 	cameraActive.value = false
 	faceDetected.value = false
 }
 
-async function startCamera() {
+async function startCamera(attempt = 1) {
+	if (cameraActive.value) return
+
 	try {
 		cameraStream = await navigator.mediaDevices.getUserMedia({
-			video: { facingMode: "user", width: { ideal: 640 } },
+			video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } },
 			audio: false,
 		})
 		videoEl.value.srcObject = cameraStream
+		await videoEl.value.play().catch(() => {})
 		cameraActive.value = true
 		fallbackNeeded.value = false
 		setStatus(__("Position your face in front of the camera"), "info")
 		startDetectionLoop()
 	} catch (error) {
+		const errorName = error?.name || ""
+		const permissionDenied = ["NotAllowedError", "SecurityError"].includes(errorName)
+
+		if (permissionDenied || !navigator.mediaDevices?.getUserMedia) {
+			fallbackNeeded.value = true
+			cameraActive.value = false
+			setStatus(__("Camera permission denied. Please take a photo instead."), "warn")
+			return
+		}
+
+		if (attempt < 3) {
+			setStatus(__("Starting camera..."), "info")
+			await new Promise((resolve) => setTimeout(resolve, 800))
+			return startCamera(attempt + 1)
+		}
+
 		fallbackNeeded.value = true
 		cameraActive.value = false
 		setStatus(__("Camera is not available. Please take a photo instead."), "warn")
@@ -171,19 +202,25 @@ async function startCamera() {
 }
 
 function startDetectionLoop() {
+	if (detectionTimer) {
+		clearInterval(detectionTimer)
+	}
 	detectionTimer = setInterval(async () => {
 		if (!videoEl.value || !cameraActive.value || capturing.value) return
+		let detection = null
 		try {
-			const detection = await detectSingleFace(
-				videoEl.value,
-				detectorOptions()
-			).withFaceLandmarks()
+			detection = await detectSingleFace(videoEl.value, detectorOptions())
 			faceDetected.value = Boolean(detection)
-			drawBox(detection)
 		} catch (error) {
 			faceDetected.value = false
+			return
 		}
-	}, 700)
+		try {
+			drawBox(detection)
+		} catch (error) {
+			// never let an overlay drawing error disable the capture button
+		}
+	}, 500)
 }
 
 function drawBox(detection) {
@@ -200,7 +237,10 @@ function drawBox(detection) {
 	context.clearRect(0, 0, canvas.width, canvas.height)
 	if (!detection) return
 
-	const box = detection.detection.box
+	// detectSingleFace() alone returns the box directly, while the landmark/descriptor
+	// pipeline nests it under `.detection`; support both shapes
+	const box = detection.detection?.box || detection.box
+	if (!box) return
 	const scaleX = displayWidth / video.videoWidth
 	const scaleY = displayHeight / video.videoHeight
 	context.strokeStyle = "#22c55e"
@@ -212,13 +252,15 @@ async function captureSample() {
 	if (capturing.value) return
 	capturing.value = true
 	try {
-		const detection = await detectFace(videoEl.value)
+		// snapshot the current video frame first so each sample is fresh and fast to detect
+		const canvas = snapshotCanvas(videoEl.value)
+		const detection = await detectFace(canvas)
 		if (!detection) {
 			setStatus(__("Face not detected. Please try again."), "warn")
 			return
 		}
 
-		const photo = capturePhoto(videoEl.value)
+		const photo = canvas.toDataURL("image/jpeg", 0.8)
 		samples.value.push(descriptorToArray(detection.descriptor))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
@@ -242,7 +284,7 @@ async function captureSample() {
 				if (cameraActive.value) {
 					setStatus(__("Position your face in front of the camera"), "info")
 				}
-			}, 1200)
+			}, 900)
 		}
 	} catch (error) {
 		setStatus(__("Face detection failed. Please try again."), "error")
@@ -262,13 +304,14 @@ async function handleFileSelect(event) {
 	capturing.value = true
 	try {
 		const image = await loadImageFromFile(file)
-		const detection = await detectFace(image)
+		const canvas = snapshotCanvas(image)
+		const detection = await detectFace(canvas)
 		if (!detection) {
 			setStatus(__("Face not detected in the photo. Please try again."), "warn")
 			return
 		}
 
-		const photo = capturePhoto(image)
+		const photo = canvas.toDataURL("image/jpeg", 0.8)
 		samples.value.push(descriptorToArray(detection.descriptor))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
@@ -309,12 +352,22 @@ function loadImageFromFile(file) {
 	})
 }
 
+function retryCamera() {
+	fallbackNeeded.value = false
+	lastSamplePhoto.value = null
+	startCamera()
+}
+
 function resetCapture() {
 	samples.value = []
 	samplesPhoto.value = null
 	lastSamplePhoto.value = null
-	if (!cameraStream) startCamera()
-	else setStatus(__("Position your face in front of the camera"), "info")
+	if (cameraActive.value) {
+		setStatus(__("Position your face in front of the camera"), "info")
+	} else {
+		fallbackNeeded.value = false
+		startCamera()
+	}
 }
 
 onMounted(async () => {

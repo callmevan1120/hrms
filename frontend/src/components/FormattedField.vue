@@ -22,6 +22,12 @@
 		class="rounded-sm text-gray-800"
 	/>
 
+	<img
+		v-else-if="props.fieldtype === 'Attach Image'"
+		:src="props.value"
+		class="rounded-lg w-full max-h-96 object-contain bg-black mt-2"
+	/>
+
 	<div
 		v-else-if="['Small Text', 'Text', 'Long Text'].includes(props.fieldtype)"
 		class="text-gray-900 text-base bg-gray-100 rounded py-3 pl-3 mt-2"

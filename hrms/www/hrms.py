@@ -31,10 +31,20 @@ def get_boot():
 		}
 	)
 
-	bootinfo.lang = frappe.local.lang
+	# resolve language from the user / system settings (not the browser accept-language)
+	# so the app language stays consistent between nav and content
+	frappe.lang = get_user_language()
 	load_translations(bootinfo)
 
 	return bootinfo
+
+
+def get_user_language():
+	lang = None
+	if frappe.session.user and frappe.session.user != "Guest":
+		lang = frappe.db.get_value("User", frappe.session.user, "language")
+
+	return lang or frappe.db.get_single_value("System Settings", "language") or "en"
 
 
 def get_default_route():

@@ -26,13 +26,11 @@
 				class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
 				id="open-checkin-modal"
 				:loading="checkins.list.loading"
+				:disabled="nextAction.action === 'DONE'"
 				@click="handleEmployeeCheckin"
 			>
 				<template #prefix>
-					<FeatherIcon
-						:name="nextAction.action === 'IN' ? 'arrow-right-circle' : 'arrow-left-circle'"
-						class="w-4"
-					/>
+					<FeatherIcon :name="nextActionIcon" class="w-4" />
 				</template>
 				{{ nextAction.label }}
 			</Button>
@@ -230,11 +228,27 @@ const missedCheckoutDate = computed(() => {
 	return dayjs(openCheckin.value?.time).format("D MMM YYYY")
 })
 
+const todayLogs = computed(() =>
+	(checkins.data || []).filter((log) => dayjs(log.time).isSame(dayjs(), "day"))
+)
+
+const hasCheckedInToday = computed(() => todayLogs.value.some((log) => log.log_type === "IN"))
+
 const nextAction = computed(() => {
 	if (openCheckin.value && isWithinCheckoutWindow(openCheckin.value)) {
 		return { action: "OUT", label: __("Check Out") }
 	}
+	// one check-in (and one check-out) per day for self-service check-ins
+	if (hasCheckedInToday.value) {
+		return { action: "DONE", label: __("Attendance Completed") }
+	}
 	return { action: "IN", label: __("Check In") }
+})
+
+const nextActionIcon = computed(() => {
+	if (nextAction.value.action === "IN") return "arrow-right-circle"
+	if (nextAction.value.action === "OUT") return "arrow-left-circle"
+	return "check-circle"
 })
 
 const enrollSamples = computed(() => settings.data?.face_enroll_samples || 3)
@@ -284,12 +298,13 @@ function resetFaceState() {
 }
 
 const handleEmployeeCheckin = () => {
+	if (nextAction.value.action === "DONE") return
+
 	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
 	resetFaceState()
 
-	if (settings.data?.allow_geolocation_tracking) {
-		fetchLocation()
-	}
+	// always try to capture the location for the check-in history (best effort)
+	fetchLocation()
 
 	if (settings.data?.enable_face_checkin) {
 		faceStatusChecked.value = false

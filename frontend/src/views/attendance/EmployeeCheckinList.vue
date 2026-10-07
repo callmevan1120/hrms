@@ -23,6 +23,8 @@ const EMPLOYEE_CHECKIN_FIELDS = [
 	"latitude",
 	"longitude",
 	"face_verified",
+	"face_photo",
+	"face_score",
 ]
 
 const FILTER_CONFIG = [

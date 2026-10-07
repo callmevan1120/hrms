@@ -67,17 +67,17 @@ function add_face_attendance_buttons(frm) {
 				const enrolled = r.message && r.message.enrolled;
 
 				frm.add_custom_button(
-					__("Daftarkan Wajah"),
+					__("Enroll Face"),
 					() => open_face_enrollment_dialog(frm),
 					__("Face Attendance")
 				);
 
 				if (enrolled) {
 					frm.add_custom_button(
-						__("Reset Wajah"),
+						__("Reset Face"),
 						() => {
 							frappe.confirm(
-								__("Hapus data wajah {0}? Karyawan harus mendaftar ulang.", [
+								__("Delete face data for {0}? The employee must enroll again.", [
 									frm.doc.employee_name || frm.doc.name,
 								]),
 								() => {
@@ -88,7 +88,7 @@ function add_face_attendance_buttons(frm) {
 										freeze: true,
 										callback: () => {
 											frappe.show_alert({
-												message: __("Data wajah dihapus"),
+												message: __("Face data deleted"),
 												indicator: "green",
 											});
 											frm.reload_doc();
@@ -132,7 +132,7 @@ function open_face_enrollment_dialog(frm) {
 		const captured_samples = [];
 		let captured_photo = null;
 		const dialog = new frappe.ui.Dialog({
-			title: __("Daftarkan Wajah: {0}", [frm.doc.employee_name || frm.doc.name]),
+			title: __("Enroll Face: {0}", [frm.doc.employee_name || frm.doc.name]),
 			size: "large",
 			fields: [
 				{
@@ -143,17 +143,17 @@ function open_face_enrollment_dialog(frm) {
 							<video autoplay muted playsinline
 								style="width:100%;max-width:480px;border-radius:8px;background:#000"></video>
 							<p class="text-muted face-status" style="margin-top:8px">
-								${__("Menyiapkan kamera...")}
+								${__("Starting camera...")}
 							</p>
 							<canvas class="face-canvas" style="display:none"></canvas>
 						</div>
 					`,
 				},
 			],
-			primary_action_label: __("Simpan ({0} sampel)", [required_samples]),
+			primary_action_label: __("Save ({0} samples)", [required_samples]),
 			primary_action: async () => {
 				if (captured_samples.length < required_samples) {
-					frappe.show_alert({ message: __("Sampel wajah belum lengkap"), indicator: "red" });
+					frappe.show_alert({ message: __("Face samples are incomplete"), indicator: "red" });
 					return;
 				}
 				dialog.get_primary_btn().prop("disabled", true);
@@ -169,7 +169,7 @@ function open_face_enrollment_dialog(frm) {
 					});
 					stopCamera();
 					dialog.hide();
-					frappe.show_alert({ message: __("Wajah berhasil didaftarkan"), indicator: "green" });
+					frappe.show_alert({ message: __("Face enrolled successfully"), indicator: "green" });
 					frm.reload_doc();
 				} catch (error) {
 					dialog.get_primary_btn().prop("disabled", false);
@@ -205,10 +205,10 @@ function open_face_enrollment_dialog(frm) {
 					audio: false,
 				});
 				video.srcObject = camera_stream;
-				setStatus(__("Posisikan wajah di depan kamera"), "green");
+				setStatus(__("Position your face in front of the camera"), "green");
 			})
 			.catch((error) => {
-				setStatus(error.message || __("Tidak dapat mengakses kamera"), "red");
+				setStatus(error.message || __("Unable to access the camera"), "red");
 			});
 
 		dialog.$wrapper.on("click", "video", async () => {
@@ -222,7 +222,7 @@ function open_face_enrollment_dialog(frm) {
 				.withFaceDescriptor();
 
 			if (!detection) {
-				setStatus(__("Wajah tidak terdeteksi, coba lagi"), "orange");
+				setStatus(__("Face not detected, try again"), "orange");
 				return;
 			}
 
@@ -235,11 +235,11 @@ function open_face_enrollment_dialog(frm) {
 			const remaining = required_samples - captured_samples.length;
 			setStatus(
 				remaining
-					? __("Sampel {0}/{1} tersimpan. Gerakkan kepala sedikit lalu klik video lagi.", [
+					? __("Sample {0}/{1} saved. Move your head slightly and click the video again.", [
 							captured_samples.length,
 							required_samples,
 						])
-					: __("Semua sampel tersimpan. Klik Simpan."),
+					: __("All samples saved. Click Save."),
 				remaining ? "green" : "blue"
 			);
 			dialog.get_primary_btn().prop("disabled", remaining > 0);

@@ -15,7 +15,9 @@ function makeTranslationFunction() {
 		}
 
 		const url = new URL("/api/method/frappe.translate.load_all_translations", location.origin);
-		url.searchParams.append("lang", window.frappe?.boot?.lang ?? navigator.language);
+		// keep the app language consistent (default: English) instead of following navigator.language,
+		// which produced a mix of Indonesian and English labels
+		url.searchParams.append("lang", window.frappe?.boot?.lang ?? "en");
 		url.searchParams.append("hash", window.frappe?.boot?.translations_hash || window._version_number || Math.random()); // for cache busting
 		// url.searchParams.append("app", "hrms");
 

@@ -258,4 +258,14 @@ export const EMPLOYEE_CHECKIN_FIELDS = [
 		label: "Face Verified",
 		fieldtype: "Check",
 	},
+	{
+		fieldname: "face_score",
+		label: "Face Match Score",
+		fieldtype: "Float",
+	},
+	{
+		fieldname: "face_photo",
+		label: "Face Photo",
+		fieldtype: "Attach Image",
+	},
 ]

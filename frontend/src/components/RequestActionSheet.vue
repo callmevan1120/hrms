@@ -25,7 +25,7 @@
 					v-for="field in fieldsWithValues"
 					:key="field.fieldname"
 					:class="[
-						['Small Text', 'Text', 'Long Text', 'Table', 'geolocation'].includes(
+						['Small Text', 'Text', 'Long Text', 'Table', 'geolocation', 'Attach Image'].includes(
 							field.fieldtype
 						)
 							? 'flex-col'
@@ -33,7 +33,9 @@
 						'flex w-full',
 					]"
 				>
-					<div class="text-gray-600 text-base">{{ __(field.label, null, props.modelValue?.doctype) }}</div>
+					<div class="text-gray-600 text-base">
+						{{ __(field.label, null, props.modelValue?.doctype) }}
+					</div>
 					<component
 						v-if="field.fieldtype === 'Table'"
 						:is="field.component"
@@ -48,20 +50,15 @@
 				</div>
 
 				<!-- Attachments -->
-				<div
-					class="flex flex-col gap-2 w-full"
-					v-if="attachedFiles?.data?.length"
-				>
-					<div class="text-gray-600 text-base">{{ __('Attachments') }}</div>
+				<div class="flex flex-col gap-2 w-full" v-if="attachedFiles?.data?.length">
+					<div class="text-gray-600 text-base">{{ __("Attachments") }}</div>
 					<ul class="w-full flex flex-col items-center gap-2">
 						<li
 							class="bg-gray-100 rounded p-2 w-full"
 							v-for="(file, index) in attachedFiles.data"
 							:key="index"
 						>
-							<div
-								class="flex flex-row items-center justify-between text-gray-700 text-sm"
-							>
+							<div class="flex flex-row items-center justify-between text-gray-700 text-sm">
 								<span class="grow" @click="showFilePreview(file)">
 									{{ file.file_name || file.name }}
 								</span>
@@ -81,7 +78,9 @@
 		/>
 
 		<div
-			v-else-if="['Open', 'Draft'].includes(document?.doc?.[approvalField]) && hasPermission('approval')"
+			v-else-if="
+				['Open', 'Draft'].includes(document?.doc?.[approvalField]) && hasPermission('approval')
+			"
 			class="flex w-full flex-row items-center justify-between gap-3 sticky bottom-0 border-t z-[100] p-4"
 		>
 			<Button
@@ -118,11 +117,7 @@
 			"
 			class="flex w-full flex-row items-center justify-between gap-3 sticky bottom-0 border-t z-[100] p-4"
 		>
-			<Button
-				@click="updateDocumentStatus({ docstatus: 1 })"
-				class="w-full py-5"
-				variant="solid"
-			>
+			<Button @click="updateDocumentStatus({ docstatus: 1 })" class="w-full py-5" variant="solid">
 				{{ __("Submit") }}
 			</Button>
 		</div>
@@ -145,11 +140,7 @@
 		</div>
 
 		<!-- File Preview Modal -->
-		<ion-modal
-			ref="modal"
-			:is-open="showPreviewModal"
-			@didDismiss="showPreviewModal = false"
-		>
+		<ion-modal ref="modal" :is-open="showPreviewModal" @didDismiss="showPreviewModal = false">
 			<FilePreviewModal :file="selectedFile" />
 		</ion-modal>
 	</div>
@@ -159,12 +150,7 @@
 import { computed, inject, ref, defineAsyncComponent, onMounted } from "vue"
 import { IonModal, modalController } from "@ionic/vue"
 import { useRouter } from "vue-router"
-import {
-	toast,
-	createDocumentResource,
-	createResource,
-	FeatherIcon,
-} from "frappe-ui"
+import { toast, createDocumentResource, createResource, FeatherIcon } from "frappe-ui"
 
 import FormattedField from "@/components/FormattedField.vue"
 import FilePreviewModal from "@/components/FilePreviewModal.vue"
@@ -235,11 +221,10 @@ const permittedWriteFields = createResource({
 const sessionEmployee = inject("$employee")
 
 function hasPermission(action) {
-	if (action === "approval" && props.modelValue.doctype === "Leave Application"){
+	if (action === "approval" && props.modelValue.doctype === "Leave Application") {
 		// prevent self leave approval
-		const isSelfLeave = document?.doc?.employee === sessionEmployee?.data?.name 
-		if (isSelfLeave && settings.data?.prevent_self_leave_approval)
-			return false
+		const isSelfLeave = document?.doc?.employee === sessionEmployee?.data?.name
+		if (isSelfLeave && settings.data?.prevent_self_leave_approval) return false
 		return permittedWriteFields.data?.includes(approvalField.value)
 	}
 	return docPermissions.data?.permissions[action]
@@ -257,10 +242,7 @@ const currency = computed(() => {
 const fieldsWithValues = computed(() => {
 	return props.fields.filter((field) => {
 		if (field.fieldtype === "Currency") {
-			field.value = formatCurrency(
-				document.doc?.[field.fieldname],
-				currency.value
-			)
+			field.value = formatCurrency(document.doc?.[field.fieldname], currency.value)
 		} else {
 			if (field.fieldtype === "Table") {
 				// dynamically loading child table component as per config
@@ -269,8 +251,7 @@ const fieldsWithValues = computed(() => {
 					import(`../components/${field.componentName}.vue`)
 				)
 			}
-			field.value =
-				document?.doc?.[field.fieldname] || props.modelValue[field.fieldname]
+			field.value = document?.doc?.[field.fieldname] || props.modelValue[field.fieldname]
 		}
 
 		return field.value
@@ -278,18 +259,14 @@ const fieldsWithValues = computed(() => {
 })
 
 const approvalField = computed(() => {
-	return props.modelValue.doctype === "Expense Claim"
-		? "approval_status"
-		: "status"
+	return props.modelValue.doctype === "Expense Claim" ? "approval_status" : "status"
 })
 
 const getSuccessMessage = ({ status = "", docstatus = 0 }) => {
 	if (status) {
 		return __("{0} successfully!", [__(status)])
 	} else if (docstatus) {
-		return __("Document {0} successfully!", [
-			docstatus === 1 ? __("submitted") : __("cancelled")]
-		)
+		return __("Document {0} successfully!", [docstatus === 1 ? __("submitted") : __("cancelled")])
 	}
 }
 
@@ -297,7 +274,7 @@ const getFailureMessage = ({ status = "", docstatus = 0 }) => {
 	if (status) {
 		return __("{0} failed!", [status === __("Approved") ? __("Approval") : __("Rejection")])
 	} else if (docstatus) {
-		return __('Document {0} failed!', [docstatus === 1 ? __("submission") : __("cancellation")])
+		return __("Document {0} failed!", [docstatus === 1 ? __("submission") : __("cancellation")])
 	}
 }
 
@@ -345,7 +322,6 @@ const openFormView = () => {
 onMounted(() => {
 	workflow.value = useWorkflow(props.modelValue.doctype)
 })
-
 </script>
 
 <style scoped>

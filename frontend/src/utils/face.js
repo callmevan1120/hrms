@@ -10,16 +10,26 @@ export function loadFaceModels() {
 			faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODELS_URL),
 			faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODELS_URL),
 			faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODELS_URL),
-		]).catch((error) => {
-			modelsPromise = null
-			throw error
-		})
+		])
+			.then(async () => {
+				try {
+					await faceapi.tf.setBackend("webgl")
+					await faceapi.tf.ready()
+				} catch (error) {
+					// fall back to the default backend (cpu)
+				}
+				return faceapi
+			})
+			.catch((error) => {
+				modelsPromise = null
+				throw error
+			})
 	}
 	return modelsPromise
 }
 
 export const detectorOptions = () =>
-	new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+	new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 })
 
 export async function detectFace(input) {
 	return await faceapi
@@ -28,14 +38,18 @@ export async function detectFace(input) {
 		.withFaceDescriptor()
 }
 
-export function capturePhoto(input, width = 480) {
-	const sourceWidth = input.videoWidth || input.naturalWidth || input.width
-	const sourceHeight = input.videoHeight || input.naturalHeight || input.height
+export function snapshotCanvas(input, width = 480) {
+	const sourceWidth = input.videoWidth || input.naturalWidth || input.width || width
+	const sourceHeight = input.videoHeight || input.naturalHeight || input.height || width
 	const canvas = document.createElement("canvas")
 	canvas.width = width
-	canvas.height = Math.round((sourceHeight / sourceWidth) * width)
+	canvas.height = Math.max(1, Math.round((sourceHeight / sourceWidth) * width))
 	canvas.getContext("2d").drawImage(input, 0, 0, canvas.width, canvas.height)
-	return canvas.toDataURL("image/jpeg", 0.8)
+	return canvas
+}
+
+export function capturePhoto(input, width = 480) {
+	return snapshotCanvas(input, width).toDataURL("image/jpeg", 0.8)
 }
 
 export function descriptorToArray(descriptor) {

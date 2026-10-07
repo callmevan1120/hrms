@@ -148,8 +148,30 @@ class EmployeeCheckin(Document):
 			return
 
 		self.validate_self_service_time()
+		self.validate_daily_checkin_limit()
 		self.validate_face_verification()
 		self.validate_checkout_window()
+
+	def validate_daily_checkin_limit(self):
+		"""Allow only one check-in per day (and one check-out via the open check-in rule)."""
+		if self.log_type != "IN":
+			return
+
+		day_start = get_datetime(self.time).replace(hour=0, minute=0, second=0, microsecond=0)
+		day_end = day_start + timedelta(days=1)
+		if frappe.db.exists(
+			"Employee Checkin",
+			{
+				"employee": self.employee,
+				"log_type": "IN",
+				"time": ["between", [day_start, day_end]],
+				"name": ("!=", self.name),
+			},
+		):
+			frappe.throw(
+				title=_("Already Checked In"),
+				msg=_("You have already checked in today. Please check out instead."),
+			)
 
 	def validate_self_service_time(self):
 		drift = abs((get_datetime(self.time) - now_datetime()).total_seconds())
