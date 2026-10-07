@@ -6,7 +6,7 @@
    "label": "Attendance Count"
   }
  ],
- "content": "[{\"id\":\"r0a57m9-Yx\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Attendance Count\",\"col\":12}},{\"id\":\"9_DQbkhJgn\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"mYz7o2zWVf\",\"type\":\"header\",\"data\":{\"text\":\"<span style=\\\"font-size: 18px;\\\"><b>Masters &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"iBvYqY6Ul6\",\"type\":\"card\",\"data\":{\"card_name\":\"Shifts\",\"col\":4}},{\"id\":\"aCKU8VAUu8\",\"type\":\"card\",\"data\":{\"card_name\":\"Attendance\",\"col\":4}},{\"id\":\"CMPmxSUFjB\",\"type\":\"card\",\"data\":{\"card_name\":\"Time\",\"col\":4}},{\"id\":\"v61fwPM9fG\",\"type\":\"card\",\"data\":{\"card_name\":\"Overtime\",\"col\":4}},{\"id\":\"WAO9X_IrfP\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}}]",
+ "content": "[{\"id\":\"r0a57m9-Yx\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Attendance Count\",\"col\":12}},{\"id\":\"9_DQbkhJgn\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"mYz7o2zWVf\",\"type\":\"header\",\"data\":{\"text\":\"<span style=\\\"font-size: 18px;\\\"><b>Masters &amp; Reports</b></span>\",\"col\":12}},{\"id\":\"eagShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance Gallery\",\"col\":4}},{\"id\":\"iBvYqY6Ul6\",\"type\":\"card\",\"data\":{\"card_name\":\"Shifts\",\"col\":4}},{\"id\":\"aCKU8VAUu8\",\"type\":\"card\",\"data\":{\"card_name\":\"Attendance\",\"col\":4}},{\"id\":\"CMPmxSUFjB\",\"type\":\"card\",\"data\":{\"card_name\":\"Time\",\"col\":4}},{\"id\":\"v61fwPM9fG\",\"type\":\"card\",\"data\":{\"card_name\":\"Overtime\",\"col\":4}},{\"id\":\"WAO9X_IrfP\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}}]",
  "creation": "2022-08-20 15:50:06.598086",
  "custom_blocks": [],
  "docstatus": 0,
@@ -261,7 +261,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-01-09 18:01:42.721780",
+ "modified": "2026-10-07 14:30:00.000000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Shift & Attendance",
@@ -272,7 +272,15 @@
  "quick_lists": [],
  "roles": [],
  "sequence_id": 4.0,
- "shortcuts": [],
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Attendance Gallery",
+   "link_to": "employee-attendance-gallery",
+   "type": "Page"
+  }
+ ],
  "title": "Shift & Attendance",
  "type": "Workspace"
 }

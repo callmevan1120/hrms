@@ -1,0 +1,598 @@
+frappe.pages["employee-attendance-gallery"].on_page_load = function (wrapper) {
+	const page = frappe.ui.make_app_page({
+		parent: wrapper,
+		title: __("Employee Attendance Gallery"),
+		single_column: true,
+	});
+
+	frappe.employee_attendance_gallery = new EmployeeAttendanceGallery(page);
+};
+
+frappe.pages["employee-attendance-gallery"].on_page_show = function () {
+	// page is kept alive in the desk, data is refreshed via the Refresh button
+};
+
+class EmployeeAttendanceGallery {
+	constructor(page) {
+		this.page = page;
+		this.mode = "auto";
+		this.view = "main";
+		this.selected_employee = null;
+		this.start = 0;
+		this.page_length = 24;
+		this.loading = false;
+		this.current_rows = [];
+
+		this.setup_dates("Today");
+		this.make_filters();
+		this.make_container();
+		this.update_mode_buttons();
+		this.refresh();
+	}
+
+	/* ------------------------------- filters ------------------------------- */
+
+	setup_dates(preset) {
+		const today = frappe.datetime.get_today();
+		if (preset === "Yesterday") {
+			this.from_date = frappe.datetime.add_days(today, -1);
+			this.to_date = this.from_date;
+		} else if (preset === "Last 7 Days") {
+			this.from_date = frappe.datetime.add_days(today, -6);
+			this.to_date = today;
+		} else if (preset === "Last 30 Days") {
+			this.from_date = frappe.datetime.add_days(today, -29);
+			this.to_date = today;
+		} else if (preset === "Today") {
+			this.from_date = today;
+			this.to_date = today;
+		}
+	}
+
+	make_filters() {
+		this.$filters = $('<div class="eag-filters"></div>').appendTo(this.page.main);
+
+		const add_field = (label, $control) => {
+			const $field = $(
+				`<div class="eag-filter"><div class="eag-filter-label">${frappe.utils.escape_html(label)}</div></div>`
+			);
+			$field.append($control).appendTo(this.$filters);
+			return $field;
+		};
+
+		// company
+		const $company = $('<div class="eag-control"></div>');
+		add_field(__("Company"), $company);
+		this.company_control = frappe.ui.form.make_control({
+			parent: $company,
+			df: {
+				fieldtype: "Link",
+				options: "Company",
+				fieldname: "company",
+				placeholder: __("All Companies"),
+			},
+			render_input: true,
+		});
+		this.company_control.$input.on(
+			"change",
+			frappe.utils.debounce(() => this.refresh(), 400)
+		);
+
+		// period preset
+		this.$preset = $(`
+			<select class="form-control eag-input">
+				<option value="Today">${__("Today")}</option>
+				<option value="Yesterday">${__("Yesterday")}</option>
+				<option value="Last 7 Days">${__("Last 7 Days")}</option>
+				<option value="Last 30 Days">${__("Last 30 Days")}</option>
+				<option value="Custom">${__("Custom")}</option>
+			</select>
+		`);
+		add_field(__("Period"), this.$preset);
+		this.$preset.on("change", () => {
+			const preset = this.$preset.val();
+			this.setup_dates(preset);
+			this.render_dates();
+			this.refresh();
+		});
+
+		// dates
+		this.$from = $('<input type="date" class="form-control eag-input">');
+		add_field(__("From Date"), this.$from);
+		this.$to = $('<input type="date" class="form-control eag-input">');
+		add_field(__("To Date"), this.$to);
+		this.render_dates();
+		this.$from.on("change", () => {
+			this.$preset.val("Custom");
+			this.refresh();
+		});
+		this.$to.on("change", () => {
+			this.$preset.val("Custom");
+			this.refresh();
+		});
+
+		// employee
+		const $employee = $('<div class="eag-control"></div>');
+		add_field(__("Employee"), $employee);
+		this.employee_control = frappe.ui.form.make_control({
+			parent: $employee,
+			df: {
+				fieldtype: "Link",
+				options: "Employee",
+				fieldname: "employee",
+				placeholder: __("All Employees"),
+			},
+			render_input: true,
+		});
+		this.employee_control.$input.on(
+			"change",
+			frappe.utils.debounce(() => this.refresh(), 400)
+		);
+
+		// search (per employee list)
+		this.$search = $(
+			`<input type="text" class="form-control eag-input" placeholder="${__("Search employee")}">`
+		);
+		add_field(__("Search"), this.$search);
+		this.$search.on(
+			"input",
+			frappe.utils.debounce(() => {
+				if (this.effective_mode() === "list") this.refresh();
+			}, 500)
+		);
+
+		// log type
+		this.$log_type = $(`
+			<select class="form-control eag-input">
+				<option value="">${__("All")}</option>
+				<option value="IN">IN</option>
+				<option value="OUT">OUT</option>
+			</select>
+		`);
+		add_field(__("Log Type"), this.$log_type);
+		this.$log_type.on("change", () => this.refresh());
+
+		// face verified
+		this.$face = $(`
+			<select class="form-control eag-input">
+				<option value="">${__("All")}</option>
+				<option value="1">${__("Verified")}</option>
+				<option value="0">${__("Unverified")}</option>
+			</select>
+		`);
+		add_field(__("Face Verified"), this.$face);
+		this.$face.on("change", () => this.refresh());
+
+		// mode toggle
+		const $mode = $('<div class="eag-control"></div>');
+		add_field(__("View Mode"), $mode);
+		this.$mode = $(`
+			<div class="eag-mode btn-group">
+				<button class="btn btn-xs btn-default" data-mode="auto">${__("Auto")}</button>
+				<button class="btn btn-xs btn-default" data-mode="gallery">${__("Gallery")}</button>
+				<button class="btn btn-xs btn-default" data-mode="list">${__("Per Employee")}</button>
+			</div>
+		`).appendTo($mode);
+		this.$mode.on("click", "button", (event) => {
+			this.mode = $(event.currentTarget).attr("data-mode");
+			this.update_mode_buttons();
+			this.refresh();
+		});
+
+		// refresh
+		const $refresh = $('<div class="eag-control"></div>');
+		add_field("", $refresh);
+		$(`<button class="btn btn-xs btn-primary">${__("Refresh")}</button>`)
+			.appendTo($refresh)
+			.on("click", () => this.refresh());
+	}
+
+	render_dates() {
+		this.$from.val(this.from_date);
+		this.$to.val(this.to_date);
+	}
+
+	update_mode_buttons() {
+		this.$mode.find("button").removeClass("btn-primary").addClass("btn-default");
+		this.$mode.find(`button[data-mode="${this.mode}"]`).removeClass("btn-default").addClass("btn-primary");
+		const effective = this.effective_mode();
+		this.$mode.attr("data-effective", effective);
+	}
+
+	/* ------------------------------ containers ----------------------------- */
+
+	make_container() {
+		this.$status = $('<div class="eag-status"></div>').appendTo(this.page.main);
+		this.$content = $('<div class="eag-content"></div>').appendTo(this.page.main);
+		this.$more = $('<div class="eag-more"></div>').appendTo(this.page.main);
+	}
+
+	set_status(message) {
+		this.$status.text(message || "");
+	}
+
+	show_error(error) {
+		let message = error && (error.message || error.exc);
+		try {
+			if (!message && error && error._server_messages) {
+				message = JSON.parse(error._server_messages)
+					.map((entry) => JSON.parse(entry).message)
+					.join("<br>");
+			}
+		} catch (e) {
+			// ignore
+		}
+		frappe.msgprint({ message: message || __("Something went wrong"), indicator: "red" });
+	}
+
+	/* -------------------------------- state -------------------------------- */
+
+	get_filters() {
+		return {
+			company: this.company_control.get_value() || null,
+			from_date: this.$from.val(),
+			to_date: this.$to.val(),
+			employee: this.employee_control.get_value() || null,
+			log_type: this.$log_type.val() || null,
+			face_verified: this.$face.val() || null,
+		};
+	}
+
+	days_in_range() {
+		const from = frappe.datetime.str_to_obj(this.$from.val());
+		const to = frappe.datetime.str_to_obj(this.$to.val());
+		return frappe.datetime.get_diff(to, from) + 1;
+	}
+
+	effective_mode() {
+		if (this.mode !== "auto") return this.mode;
+		return this.days_in_range() <= 2 ? "gallery" : "list";
+	}
+
+	refresh() {
+		if (this.view === "employee") return this.load_daily_cards();
+		if (this.effective_mode() === "gallery") return this.load_gallery(true);
+		return this.load_summary(true);
+	}
+
+	/* ------------------------------- gallery ------------------------------- */
+
+	async load_gallery(reset) {
+		if (reset) {
+			this.start = 0;
+			this.current_rows = [];
+			this.$content.empty();
+			this.$more.empty();
+			this.$grid = null;
+		}
+		if (this.loading) return;
+		this.loading = true;
+		this.set_status(__("Loading..."));
+		try {
+			const result = await frappe.xcall("hrms.api.get_employee_checkin_gallery", {
+				...this.get_filters(),
+				start: this.start,
+				page_length: this.page_length,
+			});
+			this.current_rows = this.current_rows.concat(result.rows || []);
+			this.render_gallery(result.rows || []);
+			this.start = this.current_rows.length;
+			this.$more.empty();
+			if (result.has_more) this.render_more(() => this.load_gallery(false));
+			this.set_status(
+				(result.rows || []).length || this.current_rows.length
+					? ""
+					: __("No check-ins found for the selected filters.")
+			);
+		} catch (error) {
+			this.set_status("");
+			this.show_error(error);
+		} finally {
+			this.loading = false;
+		}
+	}
+
+	render_gallery(rows) {
+		if (!this.$grid) {
+			this.$grid = $('<div class="eag-grid"></div>').appendTo(this.$content);
+			this.$grid.on("click", ".eag-card", (event) => {
+				const name = $(event.currentTarget).attr("data-name");
+				const row = this.current_rows.find((entry) => entry.name === name);
+				if (row) this.show_logs_modal(row.employee_name || row.employee, [row]);
+			});
+		}
+		rows.forEach((row) => this.$grid.append(this.card_html(row)));
+	}
+
+	card_html(row) {
+		const photo = row.face_photo
+			? `<img class="eag-photo-img" src="${frappe.utils.escape_html(row.face_photo)}" loading="lazy" alt="">`
+			: `<div class="eag-photo-empty">${frappe.utils.escape_html(
+					frappe.utils.get_abbr(row.employee_name || row.employee)
+				)}</div>`;
+		const location =
+			row.latitude && row.longitude
+				? `<div class="eag-line eag-muted"><i class="fa fa-map-marker"></i> ${Number(
+						row.latitude
+					).toFixed(5)}, ${Number(row.longitude).toFixed(5)}</div>`
+				: "";
+		const score =
+			row.face_score !== null && row.face_score !== undefined
+				? `<div class="eag-line eag-muted">${__("Score")}: ${Number(row.face_score).toFixed(3)}</div>`
+				: "";
+		const log_type = (row.log_type || "").toLowerCase();
+
+		return `
+			<div class="eag-card" data-name="${frappe.utils.escape_html(row.name)}">
+				<div class="eag-photo">
+					${photo}
+					<span class="eag-log eag-log-${log_type}">${frappe.utils.escape_html(row.log_type || "")}</span>
+					<span class="eag-badge-wrap">${this.attendance_badge(row)}</span>
+				</div>
+				<div class="eag-card-body">
+					<div class="eag-name">${frappe.utils.escape_html(
+						row.employee_name || row.employee
+					)}</div>
+					<div class="eag-line eag-muted">${frappe.utils.escape_html(row.company || "")}</div>
+					<div class="eag-line"><b>${frappe.datetime.str_to_user(row.time)}</b></div>
+					${score}
+					${location}
+				</div>
+			</div>`;
+	}
+
+	attendance_badge(row) {
+		if (row.late_entry) {
+			return `<span class="eag-badge eag-badge-late">${__("Late")}</span>`;
+		}
+		const map = {
+			Present: ["present", __("Present")],
+			"Work From Home": ["present", __("WFH")],
+			"Half Day": ["half", __("Half Day")],
+			Absent: ["absent", __("Absent")],
+			"On Leave": ["leave", __("On Leave")],
+		};
+		const entry = map[row.attendance_status];
+		if (!entry) {
+			return `<span class="eag-badge eag-badge-none">${__("No Attendance")}</span>`;
+		}
+		return `<span class="eag-badge eag-badge-${entry[0]}">${entry[1]}</span>`;
+	}
+
+	/* ------------------------------- summary ------------------------------- */
+
+	async load_summary(reset) {
+		if (reset) {
+			this.start = 0;
+			this.current_rows = [];
+			this.$content.empty();
+			this.$more.empty();
+		}
+		if (this.loading) return;
+		this.loading = true;
+		this.set_status(__("Loading..."));
+		try {
+			const filters = this.get_filters();
+			const result = await frappe.xcall("hrms.api.get_attendance_summary_by_employee", {
+				company: filters.company,
+				from_date: filters.from_date,
+				to_date: filters.to_date,
+				search: this.$search.val() || null,
+				start: this.start,
+				page_length: 20,
+			});
+			this.current_rows = this.current_rows.concat(result.rows || []);
+			this.render_summary(result.rows || []);
+			this.start = this.current_rows.length;
+			this.$more.empty();
+			if (result.has_more) this.render_more(() => this.load_summary(false));
+			this.set_status(
+				(result.rows || []).length || this.current_rows.length
+					? ""
+					: __("No employees found for the selected filters.")
+			);
+		} catch (error) {
+			this.set_status("");
+			this.show_error(error);
+		} finally {
+			this.loading = false;
+		}
+	}
+
+	render_summary(rows) {
+		if (!this.$list) {
+			this.$list = $('<div class="eag-list"></div>').appendTo(this.$content);
+			this.$list.on("click", ".eag-row", (event) => {
+				const employee = $(event.currentTarget).attr("data-employee");
+				const row = this.current_rows.find((entry) => entry.employee === employee);
+				if (row) this.open_employee(row);
+			});
+		}
+		rows.forEach((row) => this.$list.append(this.summary_row_html(row)));
+	}
+
+	summary_row_html(row) {
+		const chip = (kind, label, value) =>
+			`<span class="eag-chip eag-chip-${kind}"><b>${value}</b> ${frappe.utils.escape_html(
+				label
+			)}</span>`;
+		return `
+			<div class="eag-row" data-employee="${frappe.utils.escape_html(row.employee)}">
+				<div class="eag-avatar">${frappe.utils.escape_html(
+					frappe.utils.get_abbr(row.employee_name || row.employee)
+				)}</div>
+				<div class="eag-row-main">
+					<div class="eag-name">${frappe.utils.escape_html(
+						row.employee_name || row.employee
+					)}</div>
+					<div class="eag-line eag-muted">${frappe.utils.escape_html(
+						row.company || ""
+					)}${row.designation ? " · " + frappe.utils.escape_html(row.designation) : ""}</div>
+				</div>
+				<div class="eag-chips">
+					${chip("present", __("Present"), row.present)}
+					${chip("late", __("Late"), row.late)}
+					${chip("half", __("Half Day"), row.half_day)}
+					${chip("absent", __("Absent"), row.absent)}
+					${chip("leave", __("On Leave"), row.on_leave)}
+					${chip("logs", __("Logs"), row.logs)}
+				</div>
+				<button class="btn btn-xs btn-default eag-open">${__("Detail")}</button>
+			</div>`;
+	}
+
+	/* ------------------------------ drill-down ----------------------------- */
+
+	open_employee(row) {
+		this.view = "employee";
+		this.selected_employee = row;
+		this.refresh();
+	}
+
+	back_to_main() {
+		this.view = "main";
+		this.selected_employee = null;
+		this.refresh();
+	}
+
+	async load_daily_cards() {
+		this.$content.empty();
+		this.$more.empty();
+		this.set_status(__("Loading..."));
+		try {
+			const filters = this.get_filters();
+			const result = await frappe.xcall("hrms.api.get_attendance_daily_cards", {
+				employee: this.selected_employee.employee,
+				from_date: filters.from_date,
+				to_date: filters.to_date,
+			});
+			this.render_employee_header(result.employee);
+			this.$grid = $('<div class="eag-grid"></div>').appendTo(this.$content);
+			(result.days || []).forEach((day) => this.$grid.append(this.day_card_html(day)));
+			this.$grid.on("click", ".eag-card", (event) => {
+				const date = $(event.currentTarget).attr("data-date");
+				const day = (result.days || []).find((entry) => entry.date === date);
+				if (day) {
+					this.show_logs_modal(
+						`${result.employee.employee_name || result.employee.name} · ${frappe.datetime.str_to_user(
+							day.date
+						)}`,
+						day.logs || []
+					);
+				}
+			});
+			this.set_status((result.days || []).length ? "" : __("No attendance in this range."));
+		} catch (error) {
+			this.set_status("");
+			this.show_error(error);
+		}
+	}
+
+	render_employee_header(employee) {
+		const $header = $(`
+			<div class="eag-employee-header">
+				<button class="btn btn-xs btn-default eag-back">${__("Back")}</button>
+				<div class="eag-employee-title">
+					<b>${frappe.utils.escape_html(employee.employee_name || employee.name)}</b>
+					<span class="eag-muted">${frappe.utils.escape_html(
+						employee.company || ""
+					)}${employee.designation ? " · " + frappe.utils.escape_html(employee.designation) : ""}</span>
+				</div>
+			</div>
+		`).prependTo(this.$content);
+		$header.find(".eag-back").on("click", () => this.back_to_main());
+	}
+
+	day_card_html(day) {
+		const reference = day.first_in || day.last_out;
+		const photo = reference && reference.face_photo
+			? `<img class="eag-photo-img" src="${frappe.utils.escape_html(
+					reference.face_photo
+				)}" loading="lazy" alt="">`
+			: `<div class="eag-photo-empty">${frappe.utils.escape_html(
+					frappe.utils.get_abbr(this.selected_employee.employee_name || "")
+				)}</div>`;
+		const time_of = (log) =>
+			log ? frappe.datetime.str_to_user(log.time).split(" ").slice(-1)[0] : "-";
+		return `
+			<div class="eag-card" data-date="${day.date}">
+				<div class="eag-photo">
+					${photo}
+					<span class="eag-badge-wrap">${this.attendance_badge(day)}</span>
+				</div>
+				<div class="eag-card-body">
+					<div class="eag-line"><b>${frappe.datetime.str_to_user(day.date)}</b></div>
+					<div class="eag-line eag-muted">${__("In")}: ${time_of(day.first_in)}</div>
+					<div class="eag-line eag-muted">${__("Out")}: ${time_of(day.last_out)}</div>
+					<div class="eag-line eag-muted">${__("{0} log(s)", [(day.logs || []).length])}</div>
+				</div>
+			</div>`;
+	}
+
+	/* -------------------------------- modal -------------------------------- */
+
+	show_logs_modal(title, logs) {
+		const dialog = new frappe.ui.Dialog({
+			title: frappe.utils.escape_html(title),
+			size: "large",
+		});
+		const $body = $('<div class="eag-modal"></div>').appendTo(dialog.body);
+
+		if (!(logs || []).length) {
+			$body.append(`<div class="eag-muted">${__("No check-in logs for this day.")}</div>`);
+		}
+
+		(logs || []).forEach((log) => {
+			const photo = log.face_photo
+				? `<img class="eag-modal-photo" src="${frappe.utils.escape_html(log.face_photo)}" alt="">`
+				: `<div class="eag-modal-photo eag-photo-empty">${frappe.utils.escape_html(
+						frappe.utils.get_abbr(log.employee_name || "")
+					)}</div>`;
+			const map =
+				log.latitude && log.longitude
+					? `<iframe class="eag-map" src="https://maps.google.com/maps?q=${log.latitude},${log.longitude}&hl=en&z=15&output=embed"></iframe>`
+					: "";
+			const log_type = (log.log_type || "").toLowerCase();
+			$body.append(`
+				<div class="eag-modal-log">
+					<div class="eag-modal-col">${photo}</div>
+					<div class="eag-modal-col">
+						<div><span class="eag-log eag-log-${log_type}">${frappe.utils.escape_html(
+							log.log_type || ""
+						)}</span></div>
+						<div class="eag-line"><b>${frappe.datetime.str_to_user(log.time)}</b></div>
+						<div class="eag-line eag-muted">${__("Face Verified")}: ${
+							log.face_verified ? __("Yes") : __("No")
+						}</div>
+						${
+							log.face_score !== null && log.face_score !== undefined
+								? `<div class="eag-line eag-muted">${__("Score")}: ${Number(
+										log.face_score
+									).toFixed(3)}</div>`
+								: ""
+						}
+						${
+							log.latitude && log.longitude
+								? `<div class="eag-line eag-muted">${Number(log.latitude).toFixed(5)}, ${Number(
+										log.longitude
+									).toFixed(5)}</div>`
+								: ""
+						}
+						${map}
+					</div>
+				</div>
+			`);
+		});
+
+		dialog.show();
+	}
+
+	/* -------------------------------- helpers ------------------------------ */
+
+	render_more(callback) {
+		this.$more.empty();
+		$(`<button class="btn btn-sm btn-default">${__("Load More")}</button>`)
+			.appendTo(this.$more)
+			.on("click", callback);
+	}
+}
