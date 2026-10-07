@@ -49,7 +49,9 @@
 		:breakpoints="[0, 1]"
 		@didDismiss="resetFaceState"
 	>
-		<div class="h-120 w-full flex flex-col items-center justify-center gap-5 p-4 mb-5">
+		<div
+			class="w-full min-h-full flex flex-col items-center justify-start gap-4 px-4 pt-4 pb-10 overflow-y-auto"
+		>
 			<div class="flex flex-col gap-1.5 mt-2 items-center justify-center">
 				<div class="font-bold text-xl">
 					{{ dayjs(checkinTimestamp).format("hh:mm:ss a") }}
@@ -110,20 +112,20 @@
 					<img
 						v-if="capturedPhoto"
 						:src="capturedPhoto"
-						class="w-40 h-40 object-cover rounded-lg"
+						class="w-40 h-40 object-contain bg-black rounded-lg"
 					/>
-					<div class="text-green-600 text-sm font-medium">
-						{{ __("Face verified. Confirm to {0}.", [nextAction.label]) }}
+					<div
+						class="text-sm font-medium text-center px-2 leading-snug"
+						:class="verifyError ? 'text-red-500' : 'text-green-600'"
+					>
+						{{ confirmStatusText }}
 					</div>
 					<Button
-						:loading="faceCheckin.loading"
-						variant="solid"
-						class="w-full py-5 text-sm disabled:bg-gray-700"
-						@click="submitFaceCheckin"
+						:disabled="faceCheckin.loading"
+						variant="ghost"
+						class="w-full py-4"
+						@click="retryFaceCapture"
 					>
-						{{ __("Confirm {0}", [nextAction.label]) }}
-					</Button>
-					<Button variant="ghost" @click="retryFaceCapture">
 						{{ __("Retake Face") }}
 					</Button>
 				</div>
@@ -166,6 +168,7 @@ const faceStep = ref("capture")
 const faceStatusChecked = ref(false)
 const capturedDescriptor = ref(null)
 const capturedPhoto = ref(null)
+const verifyError = ref("")
 
 const checkins = createListResource({
 	doctype: DOCTYPE,
@@ -295,7 +298,17 @@ function resetFaceState() {
 	faceStep.value = "capture"
 	capturedDescriptor.value = null
 	capturedPhoto.value = null
+	verifyError.value = ""
 }
+
+const confirmStatusText = computed(() => {
+	if (faceCheckin.loading) return __("Verifying face...")
+	if (verifyError.value) return verifyError.value
+	if (settings.data?.allow_geolocation_tracking && !(latitude.value && longitude.value)) {
+		return __("Waiting for your location...")
+	}
+	return __("Face verified. Submitting attendance...")
+})
 
 const handleEmployeeCheckin = () => {
 	if (nextAction.value.action === "DONE") return
@@ -322,15 +335,28 @@ const handleEmployeeCheckin = () => {
 	}
 }
 
-const handleFaceCaptured = ({ descriptors, photo }) => {
+const handleFaceCaptured = async ({ descriptors, photo }) => {
 	capturedDescriptor.value = descriptors[0]
 	capturedPhoto.value = photo
+	verifyError.value = ""
 	faceStep.value = "confirm"
+
+	// give geolocation a moment to resolve so the attendance record carries the location
+	const deadline = Date.now() + 3000
+	while (!(latitude.value && longitude.value) && Date.now() < deadline) {
+		await new Promise((resolve) => setTimeout(resolve, 250))
+	}
+
+	const hasLocation = latitude.value && longitude.value
+	if (hasLocation || !settings.data?.allow_geolocation_tracking) {
+		submitFaceCheckin()
+	}
 }
 
 const retryFaceCapture = () => {
 	capturedDescriptor.value = null
 	capturedPhoto.value = null
+	verifyError.value = ""
 	faceStep.value = "capture"
 }
 
@@ -408,6 +434,7 @@ const submitFaceCheckin = () => {
 				const messages = error.messages?.length
 					? error.messages
 					: [__("{0} failed!", [actionLabel])]
+				verifyError.value = messages[0] || __("{0} failed!", [actionLabel])
 				for (const message of messages) {
 					toast({
 						title: __("Error"),

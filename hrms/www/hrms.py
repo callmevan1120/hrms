@@ -33,7 +33,7 @@ def get_boot():
 
 	# resolve language from the user / system settings (not the browser accept-language)
 	# so the app language stays consistent between nav and content
-	frappe.lang = get_user_language()
+	frappe.local.lang = get_user_language()
 	load_translations(bootinfo)
 
 	return bootinfo

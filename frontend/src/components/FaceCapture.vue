@@ -1,7 +1,7 @@
 <template>
 	<div class="flex flex-col gap-3 w-full items-center">
 		<div
-			class="relative mx-auto h-[45vh] min-h-[240px] max-h-[500px] aspect-[3/4] max-w-full overflow-hidden rounded-lg border border-gray-200 bg-black"
+			class="relative mx-auto h-[40vh] min-h-[220px] max-h-[460px] aspect-[3/4] max-w-full overflow-hidden rounded-lg border border-gray-200 bg-black"
 		>
 			<video
 				v-show="cameraActive"
@@ -29,7 +29,10 @@
 			</div>
 		</div>
 
-		<div class="text-sm font-medium text-center" :class="statusClass">
+		<div
+			class="text-sm font-medium text-center leading-snug px-1 min-h-[20px]"
+			:class="statusClass"
+		>
 			{{ statusText }}
 		</div>
 
@@ -42,9 +45,9 @@
 			@change="handleFileSelect"
 		/>
 
-		<div class="flex flex-row gap-2 w-full">
+		<div class="flex flex-wrap flex-row gap-2 w-full items-center justify-center">
 			<Button
-				v-if="cameraActive"
+				v-if="cameraActive && props.mode === 'enroll'"
 				variant="solid"
 				class="w-full py-4"
 				:disabled="!faceDetected || capturing"
@@ -52,6 +55,16 @@
 				@click="captureSample"
 			>
 				{{ captureLabel }}
+			</Button>
+			<Button
+				v-if="cameraActive && props.mode === 'verify'"
+				variant="ghost"
+				class="w-full py-3 text-xs"
+				:disabled="!faceDetected || capturing"
+				:loading="capturing"
+				@click="captureSample"
+			>
+				{{ __("Capture Manually") }}
 			</Button>
 			<Button
 				v-if="fallbackNeeded"
@@ -126,6 +139,9 @@ const samplesPhoto = ref(null)
 let cameraStream = null
 let detectionTimer = null
 
+// face must stay detected for this many detection ticks (~500ms each) before auto capture
+const AUTO_CAPTURE_TICKS = 3
+
 const statusClass = computed(() => {
 	return {
 		"text-gray-500": statusKind.value === "info",
@@ -140,6 +156,24 @@ const captureLabel = computed(() => {
 		return __("Capture Sample {0}", [samples.value.length + 1])
 	}
 	return __("Verify Face")
+})
+
+// guided poses during enrollment: cover straight and both side profiles so the
+// averaged face descriptor is robust to head rotation
+const enrollPrompts = computed(() => [
+	__("Look straight at the camera"),
+	__("Slowly turn your head to the LEFT"),
+	__("Slowly turn your head to the RIGHT"),
+	__("Look straight and lean a little closer"),
+	__("Look straight again (final sample)"),
+])
+
+const currentPrompt = computed(() => {
+	if (props.mode !== "enroll" || props.samplesRequired <= 1) {
+		return __("Position your face in front of the camera")
+	}
+	const index = Math.min(samples.value.length, enrollPrompts.value.length - 1)
+	return enrollPrompts.value[index]
 })
 
 function setStatus(text, kind = "info") {
@@ -168,14 +202,14 @@ async function startCamera(attempt = 1) {
 
 	try {
 		cameraStream = await navigator.mediaDevices.getUserMedia({
-			video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } },
+			video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
 			audio: false,
 		})
 		videoEl.value.srcObject = cameraStream
 		await videoEl.value.play().catch(() => {})
 		cameraActive.value = true
 		fallbackNeeded.value = false
-		setStatus(__("Position your face in front of the camera"), "info")
+		setStatus(currentPrompt.value, "info")
 		startDetectionLoop()
 	} catch (error) {
 		const errorName = error?.name || ""
@@ -205,6 +239,7 @@ function startDetectionLoop() {
 	if (detectionTimer) {
 		clearInterval(detectionTimer)
 	}
+	let steadyTicks = 0
 	detectionTimer = setInterval(async () => {
 		if (!videoEl.value || !cameraActive.value || capturing.value) return
 		let detection = null
@@ -213,12 +248,31 @@ function startDetectionLoop() {
 			faceDetected.value = Boolean(detection)
 		} catch (error) {
 			faceDetected.value = false
+			steadyTicks = 0
 			return
 		}
 		try {
 			drawBox(detection)
 		} catch (error) {
 			// never let an overlay drawing error disable the capture button
+		}
+
+		// auto verification: capture automatically once a face is held steady for ~1.5s
+		if (props.mode === "verify") {
+			if (detection) {
+				steadyTicks += 1
+				if (steadyTicks >= AUTO_CAPTURE_TICKS) {
+					steadyTicks = 0
+					captureSample()
+				} else if (steadyTicks === 1) {
+					setStatus(__("Hold still, verifying face..."), "success")
+				}
+			} else {
+				if (steadyTicks > 0) {
+					setStatus(currentPrompt.value, "info")
+				}
+				steadyTicks = 0
+			}
 		}
 	}, 500)
 }
@@ -273,16 +327,13 @@ async function captureSample() {
 			})
 		} else {
 			setStatus(
-				__("Sample {0}/{1} captured. Move your head slightly and capture again.", [
-					samples.value.length,
-					props.samplesRequired,
-				]),
+				__("Sample {0}/{1} captured.", [samples.value.length, props.samplesRequired]),
 				"success"
 			)
 			setTimeout(() => {
 				lastSamplePhoto.value = null
 				if (cameraActive.value) {
-					setStatus(__("Position your face in front of the camera"), "info")
+					setStatus(currentPrompt.value, "info")
 				}
 			}, 900)
 		}
@@ -363,7 +414,7 @@ function resetCapture() {
 	samplesPhoto.value = null
 	lastSamplePhoto.value = null
 	if (cameraActive.value) {
-		setStatus(__("Position your face in front of the camera"), "info")
+		setStatus(currentPrompt.value, "info")
 	} else {
 		fallbackNeeded.value = false
 		startCamera()

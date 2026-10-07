@@ -3,14 +3,7 @@ import App from "./App.vue"
 import router from "./router"
 import { initSocket } from "./socket"
 
-import {
-	Button,
-	Input,
-	setConfig,
-	frappeRequest,
-	resourcesPlugin,
-	FormControl,
-} from "frappe-ui"
+import { Button, Input, setConfig, frappeRequest, resourcesPlugin, FormControl } from "frappe-ui"
 import { translationsPlugin } from "./plugins/translationsPlugin.js"
 import EmptyState from "@/components/EmptyState.vue"
 
@@ -62,6 +55,17 @@ const registerServiceWorker = async () => {
 	window.frappePushNotification = new FrappePushNotification("hrms")
 
 	if ("serviceWorker" in navigator) {
+		// when an updated service worker takes control, reload once so the app
+		// always runs the latest bundle instead of a stale cached version
+		if (navigator.serviceWorker.controller) {
+			let refreshing = false
+			navigator.serviceWorker.addEventListener("controllerchange", () => {
+				if (refreshing) return
+				refreshing = true
+				window.location.reload()
+			})
+		}
+
 		let serviceWorkerURL = "/assets/hrms/frontend/sw.js"
 		let config = ""
 
@@ -105,7 +109,7 @@ router.isReady().then(async () => {
 		})
 	}
 
-	await translationsPlugin.isReady();
+	await translationsPlugin.isReady()
 	registerServiceWorker()
 	app.mount("#app")
 })
@@ -132,10 +136,7 @@ router.beforeEach(async (to, _, next) => {
 		await employeeResource.promise
 		// user should be an employee to access the app
 		// since all views are employee specific
-		if (
-			!employeeResource?.data ||
-			employeeResource?.data?.user_id !== userResource.data.name
-		) {
+		if (!employeeResource?.data || employeeResource?.data?.user_id !== userResource.data.name) {
 			next({ name: "InvalidEmployee" })
 		} else if (["Login", "ForgotPassword"].includes(to.name)) {
 			next({ name: "Home" })

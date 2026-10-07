@@ -47,38 +47,45 @@
 			<hr />
 
 			<!-- Summary -->
-			<div class="grid grid-cols-4 mx-2">
-				<div v-for="status in summaryStatuses" class="flex flex-col gap-1">
-					<div class="flex flex-row gap-1 items-center">
-						<span class="rounded full h-3 w-3" :class="colorMap[status]" />
-						<span class="text-gray-600 text-sm font-medium leading-5"> {{ __(status) }} </span>
+			<div class="grid grid-cols-2 gap-3 mx-2">
+				<div
+					v-for="status in summaryStatuses"
+					:key="status"
+					class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2"
+				>
+					<div class="flex flex-row gap-1.5 items-center min-w-0">
+						<span class="rounded-full h-3 w-3 shrink-0" :class="colorMap[status]" />
+						<span class="text-gray-600 text-sm font-medium leading-5 truncate">
+							{{ __(status) }}
+						</span>
 					</div>
-					<span class="text-gray-800 text-base font-semibold leading-6 mx-auto">
+					<span class="text-gray-800 text-base font-semibold leading-6">
 						{{ summary[status] || 0 }}
 					</span>
 				</div>
 			</div>
 
 			<!-- Lateness Summary -->
-			<div class="flex flex-col gap-2 mx-2">
-				<div class="flex flex-row justify-between items-center">
-					<div class="flex flex-row gap-1 items-center">
-						<span class="rounded full h-3 w-3 bg-orange-400" />
-						<span class="text-gray-600 text-sm font-medium leading-5"> {{ __("Late") }} </span>
+			<div class="flex flex-col gap-3 mx-2">
+				<div class="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
+					<div class="flex flex-row gap-1.5 items-center">
+						<span class="rounded-full h-3 w-3 bg-orange-400" />
+						<span class="text-gray-600 text-sm font-medium leading-5">{{ __("Late") }}</span>
 					</div>
-					<span class="text-gray-800 text-base font-semibold">
-						{{ __("{0} time(s)", [lateCount]) }}
-					</span>
+					<span class="text-gray-800 text-base font-semibold">{{ __("{0}x", [lateCount]) }}</span>
 				</div>
-				<div v-if="earlyExitCount" class="flex flex-row justify-between items-center">
-					<div class="flex flex-row gap-1 items-center">
-						<span class="rounded full h-3 w-3 bg-red-300" />
+				<div
+					v-if="earlyExitCount"
+					class="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2"
+				>
+					<div class="flex flex-row gap-1.5 items-center">
+						<span class="rounded-full h-3 w-3 bg-red-300" />
 						<span class="text-gray-600 text-sm font-medium leading-5">
 							{{ __("Early Exit") }}
 						</span>
 					</div>
 					<span class="text-gray-800 text-base font-semibold">
-						{{ __("{0} time(s)", [earlyExitCount]) }}
+						{{ __("{0}x", [earlyExitCount]) }}
 					</span>
 				</div>
 			</div>
@@ -157,7 +164,7 @@ const DAYS = [
 const calendarEvents = createResource({
 	url: "hrms.api.get_attendance_calendar_events",
 	auto: true,
-	cache: "hrms:attendance_calendar_events_v2",
+
 	makeParams() {
 		return {
 			from_date: firstOfMonth.value.format("YYYY-MM-DD"),

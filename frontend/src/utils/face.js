@@ -28,17 +28,23 @@ export function loadFaceModels() {
 	return modelsPromise
 }
 
+// lightweight options for the live "face present" indicator
 export const detectorOptions = () =>
 	new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 })
 
+// higher resolution options for enrollment/verification captures: better landmarks
+// mean better face alignment and a more discriminative face descriptor
+export const captureDetectorOptions = () =>
+	new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+
 export async function detectFace(input) {
 	return await faceapi
-		.detectSingleFace(input, detectorOptions())
+		.detectSingleFace(input, captureDetectorOptions())
 		.withFaceLandmarks()
 		.withFaceDescriptor()
 }
 
-export function snapshotCanvas(input, width = 480) {
+export function snapshotCanvas(input, width = 640) {
 	const sourceWidth = input.videoWidth || input.naturalWidth || input.width || width
 	const sourceHeight = input.videoHeight || input.naturalHeight || input.height || width
 	const canvas = document.createElement("canvas")

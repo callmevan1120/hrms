@@ -12,6 +12,7 @@
 				</div>
 
 				<div class="flex flex-row gap-2">
+					<Button icon="refresh-cw" variant="subtle" @click="fetchDocumentList()" />
 					<Button
 						id="show-filter-modal"
 						icon="filter"
@@ -134,6 +135,7 @@ import { useRouter } from "vue-router"
 import { inject, ref, markRaw, watch, computed, reactive, onMounted } from "vue"
 import {
 	modalController,
+	onIonViewWillEnter,
 	IonHeader,
 	IonContent,
 	IonModal,
@@ -401,5 +403,15 @@ onMounted(async () => {
 	fetchDocumentList()
 
 	useListUpdate(socket, props.doctype, () => fetchDocumentList())
+})
+
+// Ionic keeps pages alive in the navigation stack, so refresh the list
+// whenever this view becomes active again (otherwise it shows stale data)
+let hasEnteredOnce = false
+onIonViewWillEnter(() => {
+	if (hasEnteredOnce) {
+		fetchDocumentList()
+	}
+	hasEnteredOnce = true
 })
 </script>

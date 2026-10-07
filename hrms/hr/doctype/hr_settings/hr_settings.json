@@ -320,9 +320,9 @@
    "label": "Face Match Threshold"
   },
   {
-   "default": "3",
+   "default": "5",
    "depends_on": "enable_face_checkin",
-   "description": "Number of face samples captured during enrollment.",
+   "description": "Number of face samples captured during enrollment (recommended: 5, covering straight and both side profiles).",
    "fieldname": "face_enroll_samples",
    "fieldtype": "Int",
    "label": "Face Enrollment Samples"
