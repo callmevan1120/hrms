@@ -55,6 +55,35 @@ class EmployeeAttendanceGallery {
 	make_filters() {
 		this.$filters = $('<div class="eag-filters"></div>').appendTo(this.page.main);
 
+		// toolbar band, always one full-width row: view mode left, refresh right
+		const $toolbar = $('<div class="eag-toolbar"></div>').appendTo(this.$filters);
+
+		this.$mode = $(`
+			<div class="eag-seg" role="group" aria-label="${__("View Mode")}">
+				<button type="button" data-mode="auto">${__("Auto")}</button>
+				<button type="button" data-mode="gallery">${__("Gallery")}</button>
+				<button type="button" data-mode="list">${__("Per Employee")}</button>
+			</div>
+		`).appendTo($toolbar);
+		this.$mode.on("click", "button", (event) => {
+			this.mode = $(event.currentTarget).attr("data-mode");
+			this.update_mode_buttons();
+			this.refresh();
+		});
+
+		$(
+			`<button type="button" class="btn btn-default eag-refresh" title="${__("Refresh")}">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+					stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<polyline points="23 4 23 10 17 10"></polyline>
+					<polyline points="1 20 1 14 7 14"></polyline>
+					<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+				</svg>
+			</button>`
+		)
+			.appendTo($toolbar)
+			.on("click", () => this.refresh());
+
 		const add_filter = (label, $control) => {
 			const $field = $(
 				`<div class="eag-filter"><div class="eag-filter-label">${frappe.utils.escape_html(
@@ -155,40 +184,6 @@ class EmployeeAttendanceGallery {
 		`);
 		add_filter(__("Face Verified"), this.$face);
 		this.$face.on("change", () => this.refresh());
-
-		// right aligned actions: view mode + refresh on one row
-		const $actions = $('<div class="eag-filter eag-actions"></div>').append(
-			'<div class="eag-filter-label">&nbsp;</div>',
-			'<div class="eag-actions-row"></div>'
-		);
-		$actions.appendTo(this.$filters);
-		const $actions_row = $actions.find(".eag-actions-row");
-
-		this.$mode = $(`
-			<div class="eag-seg" role="group" aria-label="${__("View Mode")}">
-				<button type="button" data-mode="auto">${__("Auto")}</button>
-				<button type="button" data-mode="gallery">${__("Gallery")}</button>
-				<button type="button" data-mode="list">${__("Per Employee")}</button>
-			</div>
-		`).appendTo($actions_row);
-		this.$mode.on("click", "button", (event) => {
-			this.mode = $(event.currentTarget).attr("data-mode");
-			this.update_mode_buttons();
-			this.refresh();
-		});
-
-		$(
-			`<button type="button" class="btn btn-default eag-refresh" title="${__("Refresh")}">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-					stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<polyline points="23 4 23 10 17 10"></polyline>
-					<polyline points="1 20 1 14 7 14"></polyline>
-					<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-				</svg>
-			</button>`
-		)
-			.appendTo($actions_row)
-			.on("click", () => this.refresh());
 	}
 
 	render_dates() {
@@ -239,7 +234,10 @@ class EmployeeAttendanceGallery {
 			<div class="eag-tweaks">
 				<div class="eag-tweaks-title">
 					<span>${__("Display")}</span>
-					<i class="fa fa-chevron-down"></i>
+					<svg class="eag-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+						stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<polyline points="6 9 12 15 18 9"></polyline>
+					</svg>
 				</div>
 				<div class="eag-tweaks-body">
 					<div class="eag-tweaks-row">
@@ -382,9 +380,9 @@ class EmployeeAttendanceGallery {
 				)}</div>`;
 		const location =
 			row.latitude && row.longitude
-				? `<div class="eag-line eag-muted"><i class="fa fa-map-marker"></i> ${Number(
-						row.latitude
-					).toFixed(5)}, ${Number(row.longitude).toFixed(5)}</div>`
+				? `<div class="eag-line eag-muted">${Number(row.latitude).toFixed(5)}, ${Number(
+						row.longitude
+					).toFixed(5)}</div>`
 				: "";
 		const score =
 			row.face_score !== null && row.face_score !== undefined
