@@ -87,7 +87,7 @@ class EmployeeAttendanceGallery {
 
 		// period: preset + date range under one label
 		this.$preset = $(`
-			<select class="form-control eag-input">
+			<select class="form-control eag-input eag-preset">
 				<option value="Today">${__("Today")}</option>
 				<option value="Yesterday">${__("Yesterday")}</option>
 				<option value="Last 7 Days">${__("Last 7 Days")}</option>
@@ -179,7 +179,12 @@ class EmployeeAttendanceGallery {
 
 		$(
 			`<button type="button" class="btn btn-default eag-refresh" title="${__("Refresh")}">
-				<i class="fa fa-refresh"></i>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+					stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<polyline points="23 4 23 10 17 10"></polyline>
+					<polyline points="1 20 1 14 7 14"></polyline>
+					<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+				</svg>
 			</button>`
 		)
 			.appendTo($actions_row)

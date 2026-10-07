@@ -32,11 +32,12 @@
 .eag-filter .form-control {
 	height: 30px;
 	font-size: 13px;
-	width: auto;
+	min-width: 0;
 }
 
 .eag-filter select.form-control {
 	padding-right: 22px;
+	text-overflow: ellipsis;
 }
 
 .eag-period-row {
@@ -50,19 +51,23 @@
 }
 
 .eag-company {
-	width: 200px;
+	width: 220px;
 }
 
 .eag-search {
-	width: 200px;
+	width: 190px;
 }
 
 .eag-date {
-	width: 138px;
+	width: 130px;
+}
+
+.eag-preset {
+	width: 118px;
 }
 
 .eag-narrow {
-	width: 110px;
+	width: 104px;
 }
 
 .eag-actions {
@@ -77,9 +82,17 @@
 }
 
 .eag-refresh {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	height: 30px;
-	width: 36px;
+	width: 34px;
 	padding: 0;
+}
+
+.eag-refresh svg {
+	width: 14px;
+	height: 14px;
 }
 
 /* --------------------------- segmented control -------------------------- */
