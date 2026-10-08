@@ -71,19 +71,13 @@ class EmployeeAttendanceGallery {
 			return control;
 		};
 
-		// company
+		// company (Link control, so it can be searched by typing)
 		this.controls.company = add_control("company", {
 			label: __("Company"),
-			fieldtype: "Select",
-			options: [],
+			fieldtype: "Link",
+			options: "Company",
 			placeholder: __("All Companies"),
 		});
-		frappe.db
-			.get_list("Company", { fields: ["name"], limit_page_length: 0, order_by: "name" })
-			.then((companies) => {
-				this.controls.company.df.options = (companies || []).map((company) => company.name);
-				this.controls.company.refresh();
-			});
 
 		// period preset + range
 		this.controls.preset = add_control("preset", {
@@ -121,17 +115,17 @@ class EmployeeAttendanceGallery {
 		this.controls.log_type = add_control("log_type", {
 			label: __("Log Type"),
 			fieldtype: "Select",
-			options: ["IN", "OUT"],
-			placeholder: __("All"),
+			options: [__("All"), "IN", "OUT"],
 		});
+		this.controls.log_type.set_value(__("All"));
 
 		// face verified
 		this.controls.face_verified = add_control("face_verified", {
 			label: __("Face Verified"),
 			fieldtype: "Select",
-			options: ["Verified", "Unverified"],
-			placeholder: __("All"),
+			options: [__("All"), __("Verified"), __("Unverified")],
 		});
+		this.controls.face_verified.set_value(__("All"));
 
 		// refresh, pushed to the right of the same row
 		const $actions = $('<div class="eag-filter eag-actions"></div>').appendTo(this.$filters);
@@ -210,7 +204,8 @@ class EmployeeAttendanceGallery {
 
 	get_filters() {
 		const value = (fieldname) => this.controls[fieldname].get_value() || null;
-		const face_verified = { Verified: 1, Unverified: 0 }[value("face_verified")];
+		const log_type = value("log_type");
+		const face_verified = { [__("Verified")]: 1, [__("Unverified")]: 0 }[value("face_verified")];
 		return {
 			company: value("company"),
 			// read dates from state, not the controls: control.set_value() is
@@ -219,7 +214,7 @@ class EmployeeAttendanceGallery {
 			from_date: this.from_date,
 			to_date: this.to_date,
 			search: this.search_value || null,
-			log_type: value("log_type"),
+			log_type: log_type === __("All") ? null : log_type,
 			face_verified: face_verified === undefined ? null : face_verified,
 		};
 	}
@@ -471,18 +466,20 @@ class EmployeeAttendanceGallery {
 	}
 
 	render_employee_header(employee) {
+		const name = frappe.utils.escape_html(employee.employee_name || employee.name);
 		const $header = $(`
 			<div class="eag-employee-header">
-				<button class="btn btn-xs btn-default eag-back">${__("Back")}</button>
-				<div class="eag-employee-title">
-					<b>${frappe.utils.escape_html(employee.employee_name || employee.name)}</b>
-					<span class="eag-muted">${frappe.utils.escape_html(
-						employee.company || ""
-					)}${employee.designation ? " · " + frappe.utils.escape_html(employee.designation) : ""}</span>
+				<div class="eag-breadcrumb">
+					<a class="eag-back-link">${__("All Employees")}</a>
+					<span class="eag-crumb-sep">/</span>
+					<b>${name}</b>
 				</div>
+				<div class="eag-line eag-muted">${frappe.utils.escape_html(
+					employee.company || ""
+				)}${employee.designation ? " · " + frappe.utils.escape_html(employee.designation) : ""}</div>
 			</div>
 		`).prependTo(this.$content);
-		$header.find(".eag-back").on("click", () => this.back_to_main());
+		$header.find(".eag-back-link").on("click", () => this.back_to_main());
 	}
 
 	day_card_html(day) {
