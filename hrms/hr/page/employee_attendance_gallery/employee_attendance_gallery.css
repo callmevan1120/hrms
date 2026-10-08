@@ -1,7 +1,7 @@
 /* Employee Attendance Gallery — desk page */
 
 .eag-page {
-	padding-bottom: 32px;
+	padding: 0 15px 32px;
 }
 
 /* ------------------------------- filters ------------------------------- */
@@ -64,7 +64,7 @@
 }
 
 .eag-preset {
-	width: 112px;
+	width: 120px;
 }
 
 .eag-narrow {

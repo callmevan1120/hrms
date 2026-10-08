@@ -21,7 +21,7 @@ class EmployeeAttendanceGallery {
 		this.selected_employee = null;
 		this.start = 0;
 		this.page_length = 24;
-		this.loading = false;
+		this.request_id = 0;
 		this.current_rows = [];
 		this.search_value = "";
 
@@ -320,14 +320,16 @@ class EmployeeAttendanceGallery {
 	}
 
 	refresh() {
-		if (this.view === "employee") return this.load_daily_cards();
-		if (this.effective_mode() === "gallery") return this.load_gallery(true);
-		return this.load_summary(true);
+		this.request_id += 1;
+		if (this.view === "employee") return this.load_daily_cards(this.request_id);
+		if (this.effective_mode() === "gallery") return this.load_gallery(true, this.request_id);
+		return this.load_summary(true, this.request_id);
 	}
 
 	/* ------------------------------- gallery ------------------------------- */
 
-	async load_gallery(reset) {
+	async load_gallery(reset, request_id) {
+		const id = request_id || this.request_id;
 		if (reset) {
 			this.start = 0;
 			this.current_rows = [];
@@ -335,8 +337,6 @@ class EmployeeAttendanceGallery {
 			this.$more.empty();
 			this.$grid = null;
 		}
-		if (this.loading) return;
-		this.loading = true;
 		this.set_status(__("Loading..."));
 		try {
 			const result = await frappe.xcall("hrms.api.get_employee_checkin_gallery", {
@@ -344,6 +344,7 @@ class EmployeeAttendanceGallery {
 				start: this.start,
 				page_length: this.page_length,
 			});
+			if (id !== this.request_id) return;
 			this.current_rows = this.current_rows.concat(result.rows || []);
 			this.render_gallery(result.rows || []);
 			this.start = this.current_rows.length;
@@ -355,10 +356,9 @@ class EmployeeAttendanceGallery {
 					: __("No check-ins found for the selected filters.")
 			);
 		} catch (error) {
+			if (id !== this.request_id) return;
 			this.set_status("");
 			this.show_error(error);
-		} finally {
-			this.loading = false;
 		}
 	}
 
@@ -380,7 +380,7 @@ class EmployeeAttendanceGallery {
 					row.face_photo
 				)}" loading="lazy" alt="">`
 			: `<div class="eag-photo-empty">${frappe.utils.escape_html(
-					frappe.utils.get_abbr(row.employee_name || row.employee)
+					frappe.get_abbr(row.employee_name || row.employee)
 				)}</div>`;
 		const score =
 			row.face_score !== null && row.face_score !== undefined
@@ -425,7 +425,8 @@ class EmployeeAttendanceGallery {
 
 	/* ------------------------------- summary ------------------------------- */
 
-	async load_summary(reset) {
+	async load_summary(reset, request_id) {
+		const id = request_id || this.request_id;
 		if (reset) {
 			this.start = 0;
 			this.current_rows = [];
@@ -433,8 +434,6 @@ class EmployeeAttendanceGallery {
 			this.$more.empty();
 			this.$list = null;
 		}
-		if (this.loading) return;
-		this.loading = true;
 		this.set_status(__("Loading..."));
 		try {
 			const filters = this.get_filters();
@@ -446,6 +445,7 @@ class EmployeeAttendanceGallery {
 				start: this.start,
 				page_length: 20,
 			});
+			if (id !== this.request_id) return;
 			this.current_rows = this.current_rows.concat(result.rows || []);
 			this.render_summary(result.rows || []);
 			this.start = this.current_rows.length;
@@ -457,10 +457,9 @@ class EmployeeAttendanceGallery {
 					: __("No employees found for the selected filters.")
 			);
 		} catch (error) {
+			if (id !== this.request_id) return;
 			this.set_status("");
 			this.show_error(error);
-		} finally {
-			this.loading = false;
 		}
 	}
 
@@ -484,7 +483,7 @@ class EmployeeAttendanceGallery {
 		return `
 			<div class="eag-row" data-employee="${frappe.utils.escape_html(row.employee)}">
 				<div class="eag-avatar">${frappe.utils.escape_html(
-					frappe.utils.get_abbr(row.employee_name || row.employee)
+					frappe.get_abbr(row.employee_name || row.employee)
 				)}</div>
 				<div class="eag-row-main">
 					<div class="eag-name">${frappe.utils.escape_html(
@@ -520,7 +519,8 @@ class EmployeeAttendanceGallery {
 		this.refresh();
 	}
 
-	async load_daily_cards() {
+	async load_daily_cards(request_id) {
+		const id = request_id || this.request_id;
 		this.$content.empty();
 		this.$more.empty();
 		this.set_status(__("Loading..."));
@@ -531,6 +531,7 @@ class EmployeeAttendanceGallery {
 				from_date: filters.from_date,
 				to_date: filters.to_date,
 			});
+			if (id !== this.request_id) return;
 			this.render_employee_header(result.employee);
 			this.$grid = $('<div class="eag-grid"></div>').appendTo(this.$content);
 			(result.days || []).forEach((day) => this.$grid.append(this.day_card_html(day)));
@@ -548,6 +549,7 @@ class EmployeeAttendanceGallery {
 			});
 			this.set_status((result.days || []).length ? "" : __("No attendance in this range."));
 		} catch (error) {
+			if (id !== this.request_id) return;
 			this.set_status("");
 			this.show_error(error);
 		}
@@ -575,7 +577,7 @@ class EmployeeAttendanceGallery {
 					reference.face_photo
 				)}" loading="lazy" alt="">`
 			: `<div class="eag-photo-empty">${frappe.utils.escape_html(
-					frappe.utils.get_abbr(this.selected_employee.employee_name || "")
+					frappe.get_abbr(this.selected_employee.employee_name || "")
 				)}</div>`;
 		const time_of = (log) =>
 			log ? frappe.datetime.str_to_user(log.time).split(" ").slice(-1)[0] : "-";
@@ -611,7 +613,7 @@ class EmployeeAttendanceGallery {
 			const photo = log.face_photo
 				? `<img class="eag-modal-photo" src="${frappe.utils.escape_html(log.face_photo)}" alt="">`
 				: `<div class="eag-modal-photo eag-photo-empty">${frappe.utils.escape_html(
-						frappe.utils.get_abbr(log.employee_name || "")
+						frappe.get_abbr(log.employee_name || "")
 					)}</div>`;
 			const map =
 				log.latitude && log.longitude
@@ -658,6 +660,9 @@ class EmployeeAttendanceGallery {
 		this.$more.empty();
 		$(`<button class="btn btn-sm btn-default">${__("Load More")}</button>`)
 			.appendTo(this.$more)
-			.on("click", callback);
+			.on("click", (event) => {
+				$(event.currentTarget).prop("disabled", true);
+				callback();
+			});
 	}
 }
