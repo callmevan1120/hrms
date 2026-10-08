@@ -8,7 +8,7 @@
 
 .eag-filters {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: flex-start;
 	gap: 12px;
 	padding: 2px 0 12px;
@@ -17,39 +17,42 @@
 }
 
 .eag-filter {
+	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.eag-filter .frappe-control {
+.eag-filter .frappe-control,
+.eag-filter .form-group {
 	margin-bottom: 0;
 }
 
 .eag-f-company {
-	width: 160px;
+	min-width: 150px;
 }
 
 .eag-f-preset {
-	width: 130px;
+	min-width: 130px;
 }
 
 .eag-f-from_date,
 .eag-f-to_date {
-	width: 115px;
+	min-width: 115px;
 }
 
 .eag-f-search {
-	width: 160px;
+	min-width: 150px;
 }
 
 .eag-f-log_type {
-	width: 105px;
+	min-width: 105px;
 }
 
 .eag-f-face_verified {
-	width: 125px;
+	min-width: 120px;
 }
 
 .eag-actions {
+	flex: 0 0 auto;
 	align-self: flex-end;
 }
 
@@ -357,6 +360,7 @@
 .eag-modal-log {
 	display: flex;
 	gap: 16px;
+	align-items: flex-start;
 	border: 1px solid var(--border-color);
 	border-radius: 10px;
 	padding: 12px;
@@ -370,12 +374,20 @@
 	border-radius: 8px;
 }
 
+.eag-modal-photo.eag-photo-empty {
+	background: var(--gray-100);
+}
+
 .eag-modal-col {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 	flex: 1;
 	min-width: 0;
+}
+
+.eag-modal-photo-col {
+	flex: 0 0 auto;
 }
 
 .eag-map {

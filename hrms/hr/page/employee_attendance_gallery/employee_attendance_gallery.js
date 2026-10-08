@@ -534,7 +534,7 @@ class EmployeeAttendanceGallery {
 			const log_type = (log.log_type || "").toLowerCase();
 			$body.append(`
 				<div class="eag-modal-log">
-					<div class="eag-modal-col">${photo}</div>
+					<div class="eag-modal-col eag-modal-photo-col">${photo}</div>
 					<div class="eag-modal-col">
 						<div><span class="eag-log eag-log-${log_type}">${frappe.utils.escape_html(
 							log.log_type || ""
