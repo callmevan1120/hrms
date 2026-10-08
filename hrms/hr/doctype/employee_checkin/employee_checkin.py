@@ -218,6 +218,62 @@ class EmployeeCheckin(Document):
 				),
 			)
 
+	def after_insert(self):
+		self.queue_realtime_attendance()
+
+	def queue_realtime_attendance(self):
+		"""Mark attendance as soon as a check-out completes the day's pair.
+
+		Standard HRMS only finalises attendance after the shift ends via the
+		hourly job, so a same-day check-in/out stays invisible to the employee
+		calendar and HR until then.
+		"""
+		if self.log_type != "OUT" or not self.shift or cint(self.skip_auto_attendance):
+			return
+		frappe.enqueue(
+			"hrms.hr.doctype.employee_checkin.employee_checkin.process_shift_attendance_now",
+			queue="short",
+			enqueue_after_commit=True,
+			shift=self.shift,
+			employee=self.employee,
+		)
+
+
+def process_shift_attendance_now(shift: str, employee: str) -> None:
+	"""Process auto attendance for one employee's shift without waiting for shift end.
+
+	Called right after a check-out; only runs when the check-in of the pair is
+	still unmarked, and pulls `last_sync_of_checkin` forward so the standard
+	shift-type processor picks the logs up.
+	"""
+	pending_in = frappe.db.exists(
+		"Employee Checkin",
+		{"employee": employee, "shift": shift, "log_type": "IN", "attendance": ("is", "not set")},
+	)
+	if not pending_in:
+		return
+
+	# jobs run as the enqueuing user (the employee); attendance marking needs HR rights
+	frappe.set_user("Administrator")
+
+	shift_doc = frappe.get_doc("Shift Type", shift)
+	if not cint(shift_doc.enable_auto_attendance):
+		return
+
+	last_log = frappe.get_all(
+		"Employee Checkin",
+		filters={"employee": employee, "shift": shift, "attendance": ("is", "not set")},
+		fields=["shift_actual_end"],
+		order_by="shift_actual_end desc",
+		limit=1,
+	)
+	if last_log and last_log[0].shift_actual_end:
+		last_sync = get_datetime(last_log[0].shift_actual_end) + timedelta(minutes=1)
+		frappe.db.set_value("Shift Type", shift, "last_sync_of_checkin", last_sync)
+		shift_doc.last_sync_of_checkin = last_sync
+
+	shift_doc.process_auto_attendance()
+
 
 def get_checkout_cutoff(open_checkin) -> datetime:
 	"""Check-out is allowed until the end of the day the shift (or check-in) belongs to."""

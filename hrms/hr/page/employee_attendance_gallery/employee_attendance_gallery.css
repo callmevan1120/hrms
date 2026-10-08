@@ -10,7 +10,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: flex-start;
-	gap: 12px 16px;
+	gap: 12px;
 	padding: 2px 0 12px;
 	border-bottom: 1px solid var(--border-color);
 	margin-bottom: 16px;
@@ -25,28 +25,28 @@
 }
 
 .eag-f-company {
-	width: 190px;
+	width: 160px;
 }
 
 .eag-f-preset {
-	width: 150px;
+	width: 130px;
 }
 
 .eag-f-from_date,
 .eag-f-to_date {
-	width: 135px;
+	width: 115px;
 }
 
 .eag-f-search {
-	width: 190px;
+	width: 160px;
 }
 
 .eag-f-log_type {
-	width: 120px;
+	width: 105px;
 }
 
 .eag-f-face_verified {
-	width: 150px;
+	width: 125px;
 }
 
 .eag-actions {
@@ -127,8 +127,8 @@
 
 .eag-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-	gap: 16px;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 14px;
 	margin-bottom: 16px;
 }
 
@@ -148,7 +148,7 @@
 
 .eag-photo {
 	position: relative;
-	aspect-ratio: 3 / 4;
+	aspect-ratio: 1 / 1;
 	background: #141414;
 	display: flex;
 	align-items: center;
@@ -244,12 +244,17 @@
 	font-size: 14px;
 	font-weight: 600;
 	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .eag-line {
 	font-size: 13px;
 	color: var(--text-color);
-	word-break: break-word;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .eag-muted {
