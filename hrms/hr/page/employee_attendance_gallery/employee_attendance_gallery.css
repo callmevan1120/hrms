@@ -17,62 +17,41 @@
 }
 
 .eag-filter {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.eag-filter-label {
-	font-size: 12px;
-	line-height: 14px;
-	font-weight: 500;
-	color: var(--text-muted);
-	white-space: nowrap;
-}
-
-.eag-filter .form-control {
-	height: 30px;
-	font-size: 13px;
 	min-width: 0;
 }
 
-.eag-filter select.form-control {
-	padding-right: 22px;
-	text-overflow: ellipsis;
+.eag-filter .frappe-control {
+	margin-bottom: 0;
 }
 
-.eag-period-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+.eag-f-company {
+	width: 190px;
 }
 
-.eag-dash {
-	color: var(--text-muted);
-}
-
-.eag-company {
+.eag-f-preset {
 	width: 150px;
 }
 
-.eag-search {
-	width: 150px;
+.eag-f-from_date,
+.eag-f-to_date {
+	width: 135px;
 }
 
-.eag-date {
-	width: 118px;
+.eag-f-search {
+	width: 190px;
 }
 
-.eag-preset {
+.eag-f-log_type {
 	width: 120px;
 }
 
-.eag-narrow {
-	width: 92px;
+.eag-f-face_verified {
+	width: 150px;
 }
 
 .eag-actions {
 	margin-left: auto;
+	align-self: flex-end;
 }
 
 .eag-actions-row {
@@ -130,15 +109,6 @@
 .eag-seg button.eag-active {
 	background: var(--text-color);
 	color: var(--card-bg);
-}
-
-.eag-seg-sm {
-	height: 24px;
-}
-
-.eag-seg-sm button {
-	padding: 0 8px;
-	font-size: 11px;
 }
 
 /* ------------------------------- status -------------------------------- */
@@ -391,35 +361,6 @@
 	padding: 8px 0 24px;
 }
 
-/* ------------------------------- density -------------------------------- */
-
-.eag-page.eag-density-compact .eag-grid {
-	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-	gap: 10px;
-}
-
-.eag-page.eag-density-compact .eag-row {
-	padding: 6px 10px;
-	gap: 10px;
-}
-
-.eag-page.eag-density-compact .eag-card-body {
-	padding: 8px 10px 10px;
-}
-
-.eag-page.eag-density-compact .eag-avatar {
-	width: 30px;
-	height: 30px;
-	min-width: 30px;
-	font-size: 12px;
-}
-
-/* ----------------------------- photo ratio ------------------------------ */
-
-.eag-page.eag-photo-square .eag-photo {
-	aspect-ratio: 1 / 1;
-}
-
 /* --------------------------------- modal -------------------------------- */
 
 .eag-modal {
@@ -458,65 +399,4 @@
 	border: 0;
 	border-radius: 8px;
 	margin-top: 6px;
-}
-
-/* ------------------------------ tweak panel ----------------------------- */
-
-.eag-tweaks {
-	position: fixed;
-	right: 16px;
-	bottom: 16px;
-	z-index: 1040;
-	background: var(--card-bg);
-	border: 1px solid var(--border-color);
-	border-radius: 10px;
-	box-shadow: var(--shadow-md);
-	padding: 8px 10px;
-	min-width: 210px;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	font-size: 12px;
-	opacity: 0.95;
-}
-
-.eag-tweaks:hover {
-	opacity: 1;
-}
-
-.eag-tweaks-title {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	color: var(--text-muted);
-	font-weight: 600;
-	cursor: pointer;
-}
-
-.eag-tweaks-title .eag-chevron {
-	width: 12px;
-	height: 12px;
-	transition: transform 0.15s ease;
-}
-
-.eag-tweaks.eag-collapsed .eag-tweaks-title .eag-chevron {
-	transform: rotate(-90deg);
-}
-
-.eag-tweaks.eag-collapsed .eag-tweaks-body {
-	display: none;
-}
-
-.eag-tweaks-body {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.eag-tweaks-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-	color: var(--text-color);
 }

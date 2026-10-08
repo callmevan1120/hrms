@@ -25,6 +25,8 @@
 			<Button
 				class="mt-4 mb-1 drop-shadow-sm py-5 text-base"
 				id="open-checkin-modal"
+				:theme="nextActionTheme"
+				variant="solid"
 				:loading="checkins.list.loading"
 				:disabled="nextAction.action === 'DONE'"
 				@click="handleEmployeeCheckin"
@@ -134,6 +136,7 @@
 			<Button
 				v-else
 				:loading="checkins.insert.loading"
+				:theme="nextActionTheme"
 				variant="solid"
 				class="w-full py-5 text-sm disabled:bg-gray-700"
 				@click="submitLog(nextAction.action)"
@@ -252,6 +255,10 @@ const nextActionIcon = computed(() => {
 	if (nextAction.value.action === "IN") return "arrow-right-circle"
 	if (nextAction.value.action === "OUT") return "arrow-left-circle"
 	return "check-circle"
+})
+
+const nextActionTheme = computed(() => {
+	return nextAction.value.action === "OUT" ? "red" : "green"
 })
 
 const enrollSamples = computed(() => settings.data?.face_enroll_samples || 3)
