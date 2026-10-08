@@ -16,7 +16,6 @@ class EmployeeAttendanceGallery {
 	constructor(page) {
 		this.page = page;
 		this.page.main.addClass("eag-page");
-		this.mode = "auto";
 		this.view = "main";
 		this.selected_employee = null;
 		this.start = 0;
@@ -28,7 +27,6 @@ class EmployeeAttendanceGallery {
 		this.setup_dates("Today");
 		this.make_filters();
 		this.make_container();
-		this.update_mode_buttons();
 		this.refresh();
 	}
 
@@ -135,22 +133,9 @@ class EmployeeAttendanceGallery {
 			placeholder: __("All"),
 		});
 
-		// view mode + refresh, last group, pushed to the right of the same row
+		// refresh, pushed to the right of the same row
 		const $actions = $('<div class="eag-filter eag-actions"></div>').appendTo(this.$filters);
 		const $actions_row = $('<div class="eag-actions-row"></div>').appendTo($actions);
-
-		this.$mode = $(`
-			<div class="eag-seg" role="group" aria-label="${__("View Mode")}">
-				<button type="button" data-mode="auto">${__("Auto")}</button>
-				<button type="button" data-mode="gallery">${__("Gallery")}</button>
-				<button type="button" data-mode="list">${__("Per Employee")}</button>
-			</div>
-		`).appendTo($actions_row);
-		this.$mode.on("click", "button", (event) => {
-			this.mode = $(event.currentTarget).attr("data-mode");
-			this.update_mode_buttons();
-			this.refresh();
-		});
 
 		$(
 			`<button type="button" class="btn btn-default eag-refresh" title="${__("Refresh")}">
@@ -195,11 +180,6 @@ class EmployeeAttendanceGallery {
 		this.controls.to_date.set_value(this.to_date);
 	}
 
-	update_mode_buttons() {
-		this.$mode.find("button").removeClass("eag-active");
-		this.$mode.find(`button[data-mode="${this.mode}"]`).addClass("eag-active");
-	}
-
 	/* ------------------------------ containers ----------------------------- */
 
 	make_container() {
@@ -233,8 +213,11 @@ class EmployeeAttendanceGallery {
 		const face_verified = { Verified: 1, Unverified: 0 }[value("face_verified")];
 		return {
 			company: value("company"),
-			from_date: value("from_date"),
-			to_date: value("to_date"),
+			// read dates from state, not the controls: control.set_value() is
+			// applied asynchronously, so reading them right after a preset
+			// change would send the previous range
+			from_date: this.from_date,
+			to_date: this.to_date,
 			search: this.search_value || null,
 			log_type: value("log_type"),
 			face_verified: face_verified === undefined ? null : face_verified,
@@ -248,7 +231,6 @@ class EmployeeAttendanceGallery {
 	}
 
 	effective_mode() {
-		if (this.mode !== "auto") return this.mode;
 		return this.days_in_range() <= 2 ? "gallery" : "list";
 	}
 
