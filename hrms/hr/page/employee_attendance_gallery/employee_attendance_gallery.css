@@ -360,7 +360,6 @@
 .eag-modal-log {
 	display: flex;
 	gap: 16px;
-	align-items: flex-start;
 	border: 1px solid var(--border-color);
 	border-radius: 10px;
 	padding: 12px;
@@ -368,7 +367,8 @@
 
 .eag-modal-photo {
 	width: 180px;
-	height: 240px;
+	height: auto;
+	flex: 1 1 auto;
 	object-fit: contain;
 	background: #141414;
 	border-radius: 8px;
@@ -392,7 +392,8 @@
 
 .eag-map {
 	width: 100%;
-	height: 170px;
+	flex: 1 1 auto;
+	min-height: 140px;
 	border: 0;
 	border-radius: 8px;
 	margin-top: 6px;
